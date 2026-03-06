@@ -5,6 +5,8 @@
   import { WebLinksAddon } from '@xterm/addon-web-links';
   import '@xterm/xterm/css/xterm.css';
   import { Shell } from './core/shell';
+  import userConfig from '../nanoterm.config';
+  import { resolveNanoTermConfig } from './config';
 
   let containerEl: HTMLDivElement;
 
@@ -51,7 +53,8 @@
     terminal.open(containerEl);
     fitAddon.fit();
 
-    const shell = new Shell(terminal);
+    const shellConfig = resolveNanoTermConfig(userConfig);
+    const shell = new Shell(terminal, shellConfig);
     shell.start();
 
     terminal.onData((data) => shell.handleInput(data));

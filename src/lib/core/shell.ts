@@ -3,12 +3,17 @@ import { VirtualFS } from '../fs/filesystem';
 import { createDefaultFS } from '../fs/defaultFs';
 import { CommandHistory } from './history';
 import { registry, type CommandContext } from './commandRegistry';
+import { executePlan, type CommandExecutor } from './planExecutor';
+import { createDefaultNashPlanner } from './melangeNashPlanner';
 import { getCompletions, longestCommonPrefix } from './tabCompletion';
 import { eraseToEndOfLine, cursorBack, cursorForward, bold, fg, reset, dim } from './ansi';
 import type { NanoEditor } from '../editor/nanoEditor';
+import type { ResolvedNanoTermConfig } from '../config';
+import { applyFSOverlay } from '../fs/overlay';
+import type { NashAssignment, NashSimpleCommand, RedirectSpec } from './nashPlan';
 import '../commands/index';
 
-export class Shell {
+export class Shell implements CommandExecutor {
   private terminal: Terminal;
   fs: VirtualFS;
   private history: CommandHistory;
@@ -21,26 +26,26 @@ export class Shell {
   activeEditor: NanoEditor | null = null;
   private cols: number;
   private rows: number;
+  private config: ResolvedNanoTermConfig;
+  private planner = createDefaultNashPlanner();
 
-  constructor(terminal: Terminal) {
+  constructor(terminal: Terminal, config: ResolvedNanoTermConfig) {
     this.terminal = terminal;
+    this.config = config;
     this.cols = terminal.cols;
     this.rows = terminal.rows;
     this.fs = new VirtualFS(createDefaultFS());
+    applyFSOverlay(this.fs, this.config.fs.overlay);
     this.history = new CommandHistory();
-    this.env = new Map([
-      ['USER', 'guest'],
-      ['HOME', '/home/guest'],
-      ['SHELL', '/bin/bash'],
-      ['PATH', '/usr/bin:/bin'],
-      ['PWD', '/home/guest'],
-      ['TERM', 'xterm-256color'],
-      ['HOSTNAME', 'nanoterm'],
-      ['LANG', 'en_US.UTF-8'],
-    ]);
+    this.env = new Map(Object.entries(this.config.profile.env));
   }
 
   start(): void {
+    if (!this.config.profile.showBanner) {
+      this.printPrompt();
+      return;
+    }
+
     const banner = `${bold}${fg.cyan}
   _   _                   _
  | \\ | | __ _ _ __   ___ | |_ ___ _ __ _ __ ___
@@ -88,7 +93,7 @@ ${reset}
 
       if (ch === '\r') {
         this.terminal.write('\r\n');
-        this.executeCommand(this.lineBuffer);
+        this.runInputLine(this.lineBuffer);
         continue;
       }
       if (ch === '\x7f') { this.handleBackspace(); continue; }
@@ -310,53 +315,69 @@ ${reset}
     this.history.resetCursor();
   }
 
-  private async executeCommand(line: string): Promise<void> {
-    const expanded = this.expandVariables(line.trim());
-    if (!expanded) {
+  private async runInputLine(line: string): Promise<void> {
+    const input = line.trim();
+    if (!input) {
       this.printPrompt();
       return;
     }
 
-    this.history.push(line.trim());
-
-    // Parse redirects
-    let outputFile: string | null = null;
-    let appendMode = false;
-    let commandPart = expanded;
-
-    const redirectMatch = expanded.match(/^(.+?)\s*(>>|>)\s*(\S+)\s*$/);
-    if (redirectMatch) {
-      commandPart = redirectMatch[1].trim();
-      appendMode = redirectMatch[2] === '>>';
-      outputFile = redirectMatch[3];
-    }
-
-    const tokens = this.tokenize(commandPart);
-    if (tokens.length === 0) {
+    const planned = this.planner.parse(input);
+    if (!planned.ok) {
+      this.terminal.writeln(`syntax error: ${planned.error}`);
       this.printPrompt();
       return;
     }
 
-    const commandName = tokens[0];
-    const args = tokens.slice(1);
+    if (planned.plan.steps.length === 0) {
+      this.printPrompt();
+      return;
+    }
 
+    this.history.push(input);
+
+    await executePlan(planned.plan, this);
+
+    this.env.set('PWD', this.fs.cwd);
+    this.printPrompt();
+  }
+
+  async executeCommand(command: NashSimpleCommand): Promise<number> {
+    const expandedArgv = this.expandTemplates(command.argvTemplates);
+    if (!expandedArgv.ok) {
+      this.terminal.writeln(`expansion error: ${expandedArgv.error}`);
+      return 1;
+    }
+
+    if (expandedArgv.values.length === 0) {
+      return 0;
+    }
+
+    const commandName = expandedArgv.values[0];
+    const args = expandedArgv.values.slice(1);
     const def = registry.get(commandName);
     if (!def) {
       this.terminal.writeln(`${commandName}: command not found`);
-      this.printPrompt();
-      return;
+      return 127;
     }
+
+    const redirectResolution = this.getLastStdoutRedirect(command.redirects);
+    if (!redirectResolution.ok) {
+      this.terminal.writeln(`${commandName}: ${redirectResolution.error}`);
+      return 1;
+    }
+    const stdoutRedirect = redirectResolution.redirect;
 
     let capturedOutput = '';
     const ctx: CommandContext = {
       terminal: this.terminal,
       fs: this.fs,
       args,
-      rawArgs: commandPart.substring(commandName.length).trim(),
+      rawArgs: args.join(' '),
       env: this.env,
       history: this.history.getEntries(),
       writeStdout: (text: string) => {
-        if (outputFile) {
+        if (stdoutRedirect) {
           capturedOutput += text;
         } else {
           this.terminal.write(text);
@@ -369,69 +390,80 @@ ${reset}
     try {
       const result = await def.handler(ctx);
 
-      if (outputFile) {
-        const path = this.fs.resolvePath(outputFile);
-        if (appendMode) {
-          const existing = this.fs.readFile(path) || '';
-          this.fs.writeFile(path, existing + capturedOutput);
-        } else {
-          this.fs.writeFile(path, capturedOutput);
+      if (stdoutRedirect) {
+        const path = this.fs.resolvePath(stdoutRedirect.target);
+        const nextContent = stdoutRedirect.mode === 'append'
+          ? (this.fs.readFile(path) || '') + capturedOutput
+          : capturedOutput;
+        const writeResult = this.fs.writeFile(path, nextContent);
+        if (!writeResult.ok) {
+          this.terminal.writeln(`${commandName}: ${writeResult.error}`);
+          return 1;
         }
       }
 
-      // Update PWD
-      this.env.set('PWD', this.fs.cwd);
-
-      // Don't print prompt if command was nano (it handles its own lifecycle)
-      if (commandName !== 'nano' || result.exitCode !== -1) {
-        this.printPrompt();
-      }
+      return result.exitCode;
     } catch (err: any) {
       this.terminal.writeln(`${commandName}: ${err.message || 'unknown error'}`);
-      this.printPrompt();
+      return 1;
     }
   }
 
-  private expandVariables(input: string): string {
-    return input.replace(/\$(\w+)/g, (_match, name) => {
-      return this.env.get(name) || '';
-    });
+  applyAssignment(assignment: NashAssignment): number {
+    const expanded = this.expandTemplate(assignment.valueTemplate);
+    if (!expanded.ok) {
+      this.terminal.writeln(`assignment error: ${expanded.error}`);
+      return 1;
+    }
+
+    this.env.set(assignment.name, expanded.value);
+    return 0;
   }
 
-  private tokenize(input: string): string[] {
-    const tokens: string[] = [];
-    let current = '';
-    let inSingleQuote = false;
-    let inDoubleQuote = false;
-
-    for (let i = 0; i < input.length; i++) {
-      const ch = input[i];
-
-      if (inSingleQuote) {
-        if (ch === "'") { inSingleQuote = false; }
-        else { current += ch; }
-      } else if (inDoubleQuote) {
-        if (ch === '"') { inDoubleQuote = false; }
-        else if (ch === '\\' && i + 1 < input.length) {
-          i++;
-          current += input[i];
-        } else { current += ch; }
-      } else {
-        if (ch === "'") { inSingleQuote = true; }
-        else if (ch === '"') { inDoubleQuote = true; }
-        else if (ch === ' ' || ch === '\t') {
-          if (current) { tokens.push(current); current = ''; }
-        } else if (ch === '\\' && i + 1 < input.length) {
-          i++;
-          current += input[i];
-        } else {
-          current += ch;
+  private getLastStdoutRedirect(
+    redirects: RedirectSpec[],
+  ): { ok: true; redirect: { mode: 'truncate' | 'append'; target: string } | null } | { ok: false; error: string } {
+    for (let index = redirects.length - 1; index >= 0; index -= 1) {
+      if (redirects[index].fd === 'stdout') {
+        const expanded = this.expandTemplate(redirects[index].targetTemplate);
+        if (!expanded.ok) {
+          return { ok: false, error: expanded.error };
         }
+        return {
+          ok: true,
+          redirect: {
+            mode: redirects[index].mode,
+            target: expanded.value,
+          },
+        };
+      }
+    }
+    return { ok: true, redirect: null };
+  }
+
+  private expandTemplate(template: string): { ok: true; value: string } | { ok: false; error: string } {
+    const matches = template.match(/\$(\w+)/g) || [];
+    for (const rawMatch of matches) {
+      const name = rawMatch.slice(1);
+      if (!this.env.has(name)) {
+        return { ok: false, error: `undefined variable: ${name}` };
       }
     }
 
-    if (current) tokens.push(current);
-    return tokens;
+    const value = template.replace(/\$(\w+)/g, (_match, name) => this.env.get(name) || '');
+    return { ok: true, value };
+  }
+
+  private expandTemplates(templates: string[]): { ok: true; values: string[] } | { ok: false; error: string } {
+    const values: string[] = [];
+    for (const template of templates) {
+      const expanded = this.expandTemplate(template);
+      if (!expanded.ok) {
+        return expanded;
+      }
+      values.push(expanded.value);
+    }
+    return { ok: true, values };
   }
 
   handleResize(cols: number, rows: number): void {

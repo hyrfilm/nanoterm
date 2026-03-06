@@ -1,0 +1,8 @@
+(library
+ (name nash)
+ (modules environment hooks interpreter))
+
+(executable
+ (name main)
+ (libraries nash))
+
