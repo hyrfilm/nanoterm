@@ -1,5 +1,38 @@
 {
   "json": {},
-  "text": {},
+  "text": {
+    "etc": {
+      "hostname": "nanoterm\n",
+      "os-release": "NAME=\"NanoTerm OS\"\nVERSION=\"1.0\"\nID=nanoterm\n",
+      "passwd": "root:x:0:0:root:/root:/bin/bash\nguest:x:1000:1000:Guest User:/home/guest:/bin/bash\n"
+    },
+    "home": {
+      "guest": {
+        ".bashrc": "# nanoterm shell config\nexport PS1=\"\\u@nanoterm:\\w$ \"\n",
+        "documents": {
+          "notes.txt": "Shopping list:\n- Milk\n- Eggs\n- Bread\n- Coffee\n\nTODO:\n- [x] Set up nanoterm\n- [ ] Write some code\n- [ ] Take a break\n",
+          "readme.md": "# Welcome to NanoTerm\n\nNanoTerm is a browser-based terminal emulator running entirely in your browser.\nNo server, no backend - just a virtual filesystem and shell commands.\n\n## Quick Start\n\n  ls              List files in the current directory\n  cd <dir>        Change directory\n  cat <file>      View file contents\n  nano <file>     Edit a file\n  help            Show all available commands\n\n## Tips\n\n- Use Tab for auto-completion\n- Use Up/Down arrows to browse command history\n- Ctrl+C to cancel the current line\n- Ctrl+L to clear the screen\n\nVisit https://github.com/jonasholmer/nanoterm for more info.\n"
+        },
+        "projects": {
+          "hello.py": "#!/usr/bin/env python3\n\ndef greet(name):\n    print(f\"Hello, {name}!\")\n\nif __name__ == \"__main__\":\n    greet(\"World\")\n",
+          "index.html": "<!DOCTYPE html>\n<html lang=\"en\">\n<head>\n  <meta charset=\"UTF-8\">\n  <title>My Page</title>\n</head>\n<body>\n  <h1>Hello from NanoTerm!</h1>\n  <p>This file was created in a virtual filesystem.</p>\n</body>\n</html>\n"
+        }
+      }
+    },
+    "usr": {
+      "share": {
+        "doc": {
+          "nanoterm": {
+            "manual.txt": "NANOTERM(1)                  User Commands                  NANOTERM(1)\n\nNAME\n    nanoterm - a browser-based terminal emulator\n\nDESCRIPTION\n    NanoTerm provides a simulated Unix-like terminal environment\n    running entirely in the browser. It features a virtual in-memory\n    filesystem, common shell commands, and a built-in text editor.\n\nCOMMANDS\n    Type 'help' at the prompt for a complete list of commands.\n\nEDITOR\n    NanoTerm includes a nano-like text editor. Launch it with:\n        nano <filename>\n\n    Editor shortcuts:\n        Ctrl+O    Save file\n        Ctrl+X    Exit editor\n        Ctrl+K    Cut current line\n        Ctrl+U    Paste cut line(s)\n        Ctrl+W    Search\n        Ctrl+C    Show cursor position\n\nENVIRONMENT\n    The following environment variables are set by default:\n        USER, HOME, SHELL, PATH, PWD, TERM, HOSTNAME\n\nFILES\n    /home/guest     User home directory\n    /etc            System configuration\n    /tmp            Temporary files\n    /var/log        Log files\n\nAUTHOR\n    NanoTerm - https://github.com/jonasholmer/nanoterm\n"
+          }
+        }
+      }
+    },
+    "var": {
+      "log": {
+        "syslog": "System initialized.\nAll services started.\n"
+      }
+    }
+  },
   "binary": {}
 }

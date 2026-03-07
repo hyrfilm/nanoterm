@@ -23,4 +23,5 @@ import './wget';
 import './chmod';
 import './exportCmd';
 import './env';
+import './motd';
 import './nano';

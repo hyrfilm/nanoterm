@@ -6,7 +6,7 @@ import { registry, type CommandContext } from './commandRegistry';
 import { executePlan, type CommandExecutor } from './planExecutor';
 import { createDefaultNashPlanner } from './melangeNashPlanner';
 import { getCompletions, longestCommonPrefix } from './tabCompletion';
-import { eraseToEndOfLine, cursorBack, cursorForward, bold, fg, reset, dim } from './ansi';
+import { eraseToEndOfLine, cursorBack, cursorForward, bold, fg, reset } from './ansi';
 import type { NanoEditor } from '../editor/nanoEditor';
 import type { ResolvedNanoTermConfig } from '../config';
 import { applyFSOverlay } from '../fs/overlay';
@@ -36,24 +36,32 @@ export class Shell implements CommandExecutor {
   }
 
   start(): void {
-    if (!this.config.profile.showBanner) {
-      this.printPrompt();
-      return;
+    void this.runStartupCommands()
+      .catch((error: unknown) => {
+        const message = error instanceof Error ? error.message : String(error);
+        this.terminal.writeln(`startup error: ${message}`);
+      })
+      .finally(() => {
+        this.printPrompt();
+      });
+  }
+
+  private async runStartupCommands(): Promise<void> {
+    for (const commandLine of this.config.profile.startupCommands) {
+      const input = commandLine.trim();
+      if (!input) {
+        continue;
+      }
+
+      const planned = this.planner.parse(input);
+      if (!planned.ok) {
+        this.terminal.writeln(`startup error: ${planned.error}`);
+        continue;
+      }
+
+      await executePlan(planned.plan, this);
+      this.env.set('PWD', this.fs.cwd);
     }
-
-    const banner = `${bold}${fg.cyan}
-  _   _                   _
- | \\ | | __ _ _ __   ___ | |_ ___ _ __ _ __ ___
- |  \\| |/ _\` | '_ \\ / _ \\| __/ _ \\ '__| '\_ \` _ \\
- | |\\  | (_| | | | | (_) | ||  __/ |  | | | | | |
- |_| \\_|\\__,_|_| |_|\\___/ \\__\\___|_|  |_| |_| |_|
-${reset}
- ${dim}A browser-based terminal emulator${reset}
- ${dim}Type '${reset}help${dim}' for available commands.${reset}
-
-`;
-    this.terminal.write(banner);
-    this.printPrompt();
   }
 
   handleInput(data: string): void {
