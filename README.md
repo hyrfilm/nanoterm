@@ -5,15 +5,15 @@
 
 * built on [xterm.js](https://github.com/xtermjs/xterm.js/)
 * use as a library from TS/JS
-* pluggable shell (includes its own `nash` by default)
+* pluggable shell (provides [its own](#nash) by default.)
 * bring your own filesystem, or use one of the provided:
 * * in-memory - **default**
-* * localStorage
-* * a docker-style static file system at build-time (available for both options)
+* * localStorage - for client-side persistence
+* * apply a docker-style file system overlay at build-time (available for all filesystems)
 * custom commands, configurable styling, tree-shakable.
 
 ## commands
-* comes pre-packaged with the following commands by default:
+* comes pre-packaged with the following commands:
 ```bash
 cat
 cd
