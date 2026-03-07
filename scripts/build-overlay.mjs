@@ -6,6 +6,9 @@ import { TextDecoder } from 'node:util';
 import { glob } from 'tinyglobby';
 
 const DEFAULT_OUT = 'src/generated/fs-overlay.json';
+const TextStyle = {
+    strikethrough: ["\x1B[9m", "\x1B[29m"],
+};
 
 function printHelp() {
   console.log(`Usage:
@@ -120,9 +123,15 @@ async function buildOverlay({ fromDir, exclude }) {
   };
 
   for (const relativePath of files) {
+    if (path.basename(relativePath).startsWith('.')) {
+        console.log(TextStyle.strikethrough[0], relativePath, TextStyle.strikethrough[1]);
+        continue;
+    }
     const absolutePath = path.join(sourceDir, relativePath);
     const parts = normalizeParts(relativePath);
     const content = await fs.readFile(absolutePath);
+
+    console.log('✓', relativePath, `${content.length} bytes`);
 
     if (path.extname(relativePath) === '.json') {
       const maybeText = decodeUtf8(content);
@@ -151,6 +160,11 @@ async function buildOverlay({ fromDir, exclude }) {
   return { overlay, stats, totalFiles: files.length };
 }
 
+function formatFileSize(string) {
+    const numBytes = string.length * 2; // because utf-8
+    return `${numBytes.toLocaleString('en-US')} bytes`;
+}
+
 async function main() {
   const args = parseArgs(process.argv.slice(2));
   if (args.help) {
@@ -169,11 +183,14 @@ async function main() {
 
   const outPath = path.resolve(args.out || DEFAULT_OUT);
   await fs.mkdir(path.dirname(outPath), { recursive: true });
-  await fs.writeFile(outPath, `${JSON.stringify(overlay, null, 2)}\n`, 'utf8');
+  const overlayJson = `${JSON.stringify(overlay, null, 2)}\n`;
+  const totalSizeKb = formatFileSize(overlayJson);
+  await fs.writeFile(outPath, overlayJson, 'utf8');
 
   console.log(`Overlay generated: ${outPath}`);
   console.log(`Files processed: ${totalFiles}`);
   console.log(`JSON: ${stats.json}, text: ${stats.text}, binary: ${stats.binary}`);
+  console.log(`Total size: ${totalSizeKb}`);
 }
 
 main().catch((error) => {
