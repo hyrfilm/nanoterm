@@ -6,9 +6,9 @@ registry.register({
   usage: 'uname [-a]',
   handler: (ctx) => {
     if (ctx.args.includes('-a')) {
-      ctx.writeStdout('NanoTerm 1.0.0 nanoterm Browser/WASM nanoterm NanoTerm\r\n');
+      ctx.writeStdout('nanoterm 1.0.0 browser xterm\r\n');
     } else {
-      ctx.writeStdout('NanoTerm\r\n');
+      ctx.writeStdout('nanoterm\r\n');
     }
     return { exitCode: 0 };
   },

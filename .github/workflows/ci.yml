@@ -1,0 +1,43 @@
+name: ci
+
+on:
+  push:
+    branches:
+      - main
+      - feature/**
+  pull_request:
+
+jobs:
+  build-test:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24.9.0
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build overlay
+        run: npm run overlay:build
+
+      - name: Run tests
+        run: npm test
+
+      - name: Run type checks
+        run: npm run check
+
+      - name: Build app
+        run: npm run build
+
+      - name: Build library
+        run: npm run build:lib
+
+      - name: Build demos
+        run: npm run demo:build

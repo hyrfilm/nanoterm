@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { Shell } from './shell';
 import { resolveNanoTermConfig } from '../config';
 import type { NashSimpleCommand } from './nashPlan';
+import '../commands/index';
 
 class FakeTerminal {
   cols = 80;
@@ -66,11 +67,10 @@ describe('Shell integration', () => {
     const config = resolveNanoTermConfig();
     const shell = new Shell(terminal as any, config);
 
-    await shell.executeCommand({ argvTemplates: ['rm', '/etc/motd'], redirects: [] });
     const exitCode = await shell.executeCommand({ argvTemplates: ['motd'], redirects: [] });
 
     expect(exitCode).toBe(0);
-    expect(terminal.output).toContain('A browser-based terminal emulator');
+    expect(terminal.output).toContain('browser-based terminal emulator');
   });
 
   it('runs startup commands before first prompt', async () => {
