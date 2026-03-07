@@ -1,10 +1,21 @@
-Shopping list:
-- Milk
-- Eggs
-- Bread
-- Coffee
+# TODO
 
-TODO:
 - [x] Set up nanoterm
-- [ ] Write some code
+- [ ] Finish classification
 - [ ] Take a break
+
+**TODO:** Classify these animals
+- [x] belonging to the Emperor
+- [x] embalmed
+- [x] trained
+- [x] piglets
+- [x] sirens
+- [x] fabulous
+- [x] stray dogs
+- [ ] included in this classification
+- [ ] trembling like crazy
+- [ ] innumerables
+- [ ] drawn with a very fine camelhair brush
+- [ ] et cetera
+- [ ] just broke the vase
+- [ ] from a distance look like flies

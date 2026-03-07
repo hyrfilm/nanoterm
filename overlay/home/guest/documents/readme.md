@@ -1,7 +1,4 @@
-# Welcome to NanoTerm
-
-NanoTerm is a browser-based terminal emulator running entirely in your browser.
-No server, no backend - just a virtual filesystem and shell commands.
+# Welcome
 
 ## Quick Start
 
@@ -18,4 +15,4 @@ No server, no backend - just a virtual filesystem and shell commands.
 - Ctrl+C to cancel the current line
 - Ctrl+L to clear the screen
 
-Visit https://github.com/jonasholmer/nanoterm for more info.
+Visit https://github.com/hyrfilm/nanoterm for more info.
