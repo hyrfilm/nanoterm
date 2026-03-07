@@ -173,10 +173,8 @@ export class Shell implements CommandExecutor {
   private insertChar(ch: string): void {
     this.lineBuffer = this.lineBuffer.substring(0, this.cursorPos) + ch + this.lineBuffer.substring(this.cursorPos);
     this.cursorPos++;
-    if (this.cursorPos === this.lineBuffer.length) {
-      this.terminal.write(ch);
-    } else {
-      this.terminal.write(ch);
+    this.terminal.write(ch);
+    if (this.cursorPos < this.lineBuffer.length) {
       this.refreshLineFromCursor();
     }
   }
