@@ -23,6 +23,11 @@ import { createNanoTerm } from 'nanoterm';
 createNanoTerm(document.getElementById('terminal')!);
 ```
 
+## sharing snapshots
+* the local state of the emulator can be stored as snapshot, shared and played back.
+Who hasn't wanted to ask a magic 8ball for an answer about your future, and turning that answer into ascii? [Now you can](replay=eyJjb21tYW5kcyI6W1siaGVscCJdLFsibHMiXSxbInRyZWUiXSxbIndob2FtaSJdLFsiY3VybCIsImh0dHBzOi8vdGNwZGF0YS5jb20vOGJhbGwiXSxbImNhdCIsImZvcnR1bmUuanNvbiJdLFsianEiLCItciIsImFuc3dlciIsImZvcnR1bmUuanNvbiJdLFsicmVhZHZhciIsIkFOU1dFUiIsImFuc3dlci50eHQiXSxbImVjaG8iLCJDYW5ub3QgcHJlZGljdCBub3ciXSxbImN1cmwiLCJodHRwczovL3RjcGRhdGEuY29tL2FzY2lpL0Nhbm5vdCBwcmVkaWN0IG5vdyJdLFsiY2F0IiwiZm9ydHVuZS5hc2NpaSJdLFsiY2xlYXIiXSxbImpxIiwiLXIiLCJhc2NpaSIsImZvcnR1bmUuYXNjaWkiXV0sInJlZGlyZWN0cyI6W1tdLFtdLFtdLFtdLFt7ImZkIjoic3Rkb3V0IiwibW9kZSI6InRydW5jYXRlIiwidGFyZ2V0VGVtcGxhdGUiOiJmb3J0dW5lLmpzb24ifV0sW10sW3siZmQiOiJzdGRvdXQiLCJtb2RlIjoidHJ1bmNhdGUiLCJ0YXJnZXRUZW1wbGF0ZSI6ImFuc3dlci50eHQifV0sW10sW10sW3siZmQiOiJzdGRvdXQiLCJtb2RlIjoidHJ1bmNhdGUiLCJ0YXJnZXRUZW1wbGF0ZSI6ImZvcnR1bmUuYXNjaWkifV0sW10sW10sW11dLCJ0cyI6WzI4MDcsODEyNiwxMDMwNCwxNDYwMiwyNjMyMSwyOTk4MSwzOTQ0Nyw0MzY5Niw0ODI0OSw1NjE2OSw2NzM4Miw3ODM5Myw4MDY2M119) 
+* Use the `help` with the `record` & `replay` command for more info on how this is done.
+
 ## commands
 * comes pre-packaged with the following commands:
 ```bash
