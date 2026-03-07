@@ -1,5 +1,6 @@
 import type { Terminal } from '@xterm/xterm';
 import type { VirtualFS } from '../fs/filesystem';
+import type { RedirectSpec } from './nashPlan';
 
 export interface CommandContext {
   terminal: Terminal;
@@ -13,6 +14,9 @@ export interface CommandContext {
       handleInput(data: string): void;
       handleResize(cols: number, rows: number): void;
     } | null;
+    runArgv(argv: string[]): Promise<number>;
+    runCommand(argv: string[], redirects: RedirectSpec[]): Promise<number>;
+    printPrompt(): void;
   };
 }
 

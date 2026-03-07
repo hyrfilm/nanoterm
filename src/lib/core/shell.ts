@@ -11,6 +11,7 @@ import type { NanoEditor } from '../editor/nanoEditor';
 import type { ResolvedNanoTermConfig } from '../config';
 import { applyFSOverlay } from '../fs/overlay';
 import type { NashAssignment, NashSimpleCommand, RedirectSpec } from './nashPlan';
+import { recordCommand } from '../commands/recorder';
 
 export class Shell implements CommandExecutor {
   private terminal: Terminal;
@@ -399,11 +400,20 @@ export class Shell implements CommandExecutor {
         }
       }
 
+      recordCommand(expandedArgv.values, command.redirects);
       return result.exitCode;
     } catch (err: any) {
       this.terminal.writeln(`${commandName}: ${err.message || 'unknown error'}`);
       return 1;
     }
+  }
+
+  async runArgv(argv: string[]): Promise<number> {
+    return this.executeCommand({ argvTemplates: argv, redirects: [] });
+  }
+
+  async runCommand(argv: string[], redirects: RedirectSpec[]): Promise<number> {
+    return this.executeCommand({ argvTemplates: argv, redirects });
   }
 
   applyAssignment(assignment: NashAssignment): number {
