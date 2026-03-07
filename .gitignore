@@ -60,3 +60,9 @@ coverage/
 .turbo/
 *.tsbuildinfo
 nash/_build/
+
+# Local design notes
+.rfc.md
+.rfd.md
+docs/.rfc.md
+docs/.rfd.md
