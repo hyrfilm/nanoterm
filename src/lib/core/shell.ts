@@ -21,19 +21,14 @@ export class Shell implements CommandExecutor {
 
   private lineBuffer = '';
   private cursorPos = 0;
-  private promptLength = 0;
 
   activeEditor: NanoEditor | null = null;
-  private cols: number;
-  private rows: number;
   private config: ResolvedNanoTermConfig;
   private planner = createDefaultNashPlanner();
 
   constructor(terminal: Terminal, config: ResolvedNanoTermConfig) {
     this.terminal = terminal;
     this.config = config;
-    this.cols = terminal.cols;
-    this.rows = terminal.rows;
     this.fs = new VirtualFS(createDefaultFS());
     applyFSOverlay(this.fs, this.config.fs.overlay);
     this.history = new CommandHistory();
@@ -317,7 +312,6 @@ export class Shell implements CommandExecutor {
 
     const prompt = `${bold}${fg.green}${this.fs.username}@nanoterm${reset}:${bold}${fg.blue}${displayPath}${reset}$ `;
     this.terminal.write(prompt);
-    this.promptLength = `${this.fs.username}@nanoterm:${displayPath}$ `.length;
     this.lineBuffer = '';
     this.cursorPos = 0;
     this.history.resetCursor();
@@ -381,7 +375,6 @@ export class Shell implements CommandExecutor {
       terminal: this.terminal,
       fs: this.fs,
       args,
-      rawArgs: args.join(' '),
       env: this.env,
       history: this.history.getEntries(),
       writeStdout: (text: string) => {
@@ -391,9 +384,8 @@ export class Shell implements CommandExecutor {
           this.terminal.write(text);
         }
       },
+      shell: this,
     };
-    // Pass shell reference for commands that need it (e.g. nano)
-    (ctx as any).__shell__ = this;
 
     try {
       const result = await def.handler(ctx);
@@ -475,8 +467,6 @@ export class Shell implements CommandExecutor {
   }
 
   handleResize(cols: number, rows: number): void {
-    this.cols = cols;
-    this.rows = rows;
     if (this.activeEditor) {
       this.activeEditor.handleResize(cols, rows);
     }

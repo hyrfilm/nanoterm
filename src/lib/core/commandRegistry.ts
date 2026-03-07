@@ -5,10 +5,15 @@ export interface CommandContext {
   terminal: Terminal;
   fs: VirtualFS;
   args: string[];
-  rawArgs: string;
   env: Map<string, string>;
   history: string[];
   writeStdout: (text: string) => void;
+  shell?: {
+    activeEditor: {
+      handleInput(data: string): void;
+      handleResize(cols: number, rows: number): void;
+    } | null;
+  };
 }
 
 export interface CommandResult {
