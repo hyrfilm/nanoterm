@@ -4,7 +4,7 @@ NAME
     nanoterm - a browser-based terminal emulator
 
 DESCRIPTION
-    NanoTerm provides a simulated Unix-like terminal environment
+    nanoterm provides a simulated Unix-like terminal environment
     running entirely in the browser. It features a virtual in-memory
     filesystem, common shell commands, and a built-in text editor.
 
@@ -12,7 +12,7 @@ COMMANDS
     Type 'help' at the prompt for a complete list of commands.
 
 EDITOR
-    NanoTerm includes a nano-like text editor. Launch it with:
+    nanoterm includes a nano-like text editor. Launch it with:
         nano <filename>
 
     Editor shortcuts:
@@ -34,4 +34,4 @@ FILES
     /var/log        Log files
 
 AUTHOR
-    NanoTerm - https://github.com/jonasholmer/nanoterm
+    nanoterm - https://github.com/hyrfilm/nanoterm

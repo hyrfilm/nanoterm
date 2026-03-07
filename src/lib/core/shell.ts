@@ -11,7 +11,6 @@ import type { NanoEditor } from '../editor/nanoEditor';
 import type { ResolvedNanoTermConfig } from '../config';
 import { applyFSOverlay } from '../fs/overlay';
 import type { NashAssignment, NashSimpleCommand, RedirectSpec } from './nashPlan';
-import '../commands/index';
 
 export class Shell implements CommandExecutor {
   private terminal: Terminal;

@@ -1,5 +1,5 @@
 import { registry } from '../core/commandRegistry';
-import { bold, dim, fg, reset } from '../core/ansi';
+import { bold, dim, fg, reset, underline } from '../core/ansi';
 
 const fallbackMotd = `${bold}${fg.cyan}
   _   _                   _
@@ -8,8 +8,11 @@ const fallbackMotd = `${bold}${fg.cyan}
  | |\\  | (_| | | | | (_) | ||  __/ |  | | | | | |
  |_| \\_|\\__,_|_| |_|\\___/ \\__\\___|_|  |_| |_| |_|
 ${reset}
- ${dim}A browser-based terminal emulator${reset}
- ${dim}Type '${reset}help${dim}' for available commands.${reset}
+ ${dim}browser-based terminal emulator${reset}
+ ${dim}type '${reset}help${dim}' for available commands${reset}
+
+ ${underline}https://github.com/hyrfilm/nanoterm${reset}
+ 
 `;
 
 function toTerminalOutput(value: string): string {
