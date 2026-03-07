@@ -1,7 +1,7 @@
 # nanoterm
 ## unix terminal emulator
 ### in your browser
-![ezgif-32cea9241ed81b54](https://github.com/user-attachments/assets/0e5f3ab4-9d00-4fb2-a698-5e947a6273a9)
+[![ezgif-32cea9241ed81b54](https://github.com/user-attachments/assets/0e5f3ab4-9d00-4fb2-a698-5e947a6273a9)](https://hyrfilm.github.io/nanoterm/)
 
 * built on [xterm.js](https://github.com/xtermjs/xterm.js/)
 * use as a library from TS/JS
