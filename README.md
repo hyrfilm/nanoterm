@@ -1,7 +1,8 @@
 # nanoterm
-
 ## unix terminal emulator
 ### running locally in the browser
+![ezgif-32cea9241ed81b54](https://github.com/user-attachments/assets/0e5f3ab4-9d00-4fb2-a698-5e947a6273a9)
+
 * built on [xterm.js](https://github.com/xtermjs/xterm.js/)
 * use as a library from TS/JS
 * pluggable shell (includes its own `nash` by default)
