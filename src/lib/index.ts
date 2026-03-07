@@ -2,6 +2,7 @@ import { Terminal } from '@xterm/xterm';
 import { FitAddon } from '@xterm/addon-fit';
 import { WebLinksAddon } from '@xterm/addon-web-links';
 import xtermCss from '@xterm/xterm/css/xterm.css?inline';
+import './commands/index';
 import { Shell } from './core/shell';
 import { resolveNanoTermConfig } from './config';
 import type { NanoTermConfig } from './config';

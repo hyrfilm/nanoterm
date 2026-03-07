@@ -1,6 +1,7 @@
 {
   "name": "nanoterm",
   "version": "0.1.0",
+  "description": "pluggable unix emulator for the browser",
   "type": "module",
   "main": "./dist-lib/nanoterm.js",
   "types": "./dist-lib/index.d.ts",

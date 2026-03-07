@@ -1,6 +1,6 @@
 # nanoterm
 ## unix terminal emulator
-### running locally in the browser
+### in your browser
 ![ezgif-32cea9241ed81b54](https://github.com/user-attachments/assets/0e5f3ab4-9d00-4fb2-a698-5e947a6273a9)
 
 * built on [xterm.js](https://github.com/xtermjs/xterm.js/)
@@ -11,6 +11,17 @@
 * * localStorage - for client-side persistence
 * * apply a docker-style file system overlay at build-time (available for all filesystems)
 * custom commands, configurable styling, tree-shakable.
+
+## install
+
+```bash
+npm install nanoterm
+```
+
+```ts
+import { createNanoTerm } from 'nanoterm';
+createNanoTerm(document.getElementById('terminal')!);
+```
 
 ## commands
 * comes pre-packaged with the following commands:
