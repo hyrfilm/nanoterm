@@ -1,0 +1,10 @@
+Shopping list:
+- Milk
+- Eggs
+- Bread
+- Coffee
+
+TODO:
+- [x] Set up nanoterm
+- [ ] Write some code
+- [ ] Take a break

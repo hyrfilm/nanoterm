@@ -21,10 +21,14 @@ class FakeTerminal {
   }
 }
 
+function flushMicrotasks(): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, 0));
+}
+
 describe('Shell integration', () => {
   it('executes command with stdout redirect into virtual filesystem', async () => {
     const terminal = new FakeTerminal();
-    const config = resolveNanoTermConfig({ profile: { showBanner: false } });
+    const config = resolveNanoTermConfig();
     const shell = new Shell(terminal as any, config);
 
     shell.env.set('OUT_FILE', 'listing.txt');
@@ -43,7 +47,7 @@ describe('Shell integration', () => {
 
   it('returns expansion error when command template references missing variable', async () => {
     const terminal = new FakeTerminal();
-    const config = resolveNanoTermConfig({ profile: { showBanner: false } });
+    const config = resolveNanoTermConfig();
     const shell = new Shell(terminal as any, config);
 
     const command: NashSimpleCommand = {
@@ -56,5 +60,33 @@ describe('Shell integration', () => {
     expect(exitCode).toBe(1);
     expect(terminal.output).toContain('expansion error: undefined variable: MISSING_VAR');
   });
-});
 
+  it('prints fallback motd when /etc/motd is missing', async () => {
+    const terminal = new FakeTerminal();
+    const config = resolveNanoTermConfig();
+    const shell = new Shell(terminal as any, config);
+
+    await shell.executeCommand({ argvTemplates: ['rm', '/etc/motd'], redirects: [] });
+    const exitCode = await shell.executeCommand({ argvTemplates: ['motd'], redirects: [] });
+
+    expect(exitCode).toBe(0);
+    expect(terminal.output).toContain('A browser-based terminal emulator');
+  });
+
+  it('runs startup commands before first prompt', async () => {
+    const terminal = new FakeTerminal();
+    const config = resolveNanoTermConfig({
+      profile: {
+        startupCommands: ['echo ready'],
+      },
+    });
+    const shell = new Shell(terminal as any, config);
+
+    shell.start();
+    await flushMicrotasks();
+
+    expect(terminal.output).toContain('ready\r\n');
+    expect(terminal.output).toContain('guest@nanoterm');
+    expect(terminal.output.indexOf('ready\r\n')).toBeLessThan(terminal.output.indexOf('guest@nanoterm'));
+  });
+});

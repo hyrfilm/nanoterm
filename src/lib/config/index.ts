@@ -1,7 +1,7 @@
 import { emptyOverlay, type FSOverlay } from '../fs/overlay';
 
 export interface NanoTermProfileConfig {
-  showBanner?: boolean;
+  startupCommands?: string[];
   env?: Record<string, string>;
 }
 
@@ -52,7 +52,7 @@ export interface NanoTermConfig {
 
 export interface ResolvedNanoTermConfig {
   profile: {
-    showBanner: boolean;
+    startupCommands: string[];
     env: Record<string, string>;
   };
   fs: {
@@ -106,7 +106,7 @@ export function defineNanoTermConfig(config: NanoTermConfig): NanoTermConfig {
 export function resolveNanoTermConfig(config: NanoTermConfig = {}): ResolvedNanoTermConfig {
   return {
     profile: {
-      showBanner: config.profile?.showBanner ?? true,
+      startupCommands: config.profile?.startupCommands ?? [],
       env: {
         ...defaultEnv,
         ...(config.profile?.env || {}),

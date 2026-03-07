@@ -1,0 +1,37 @@
+NANOTERM(1)                  User Commands                  NANOTERM(1)
+
+NAME
+    nanoterm - a browser-based terminal emulator
+
+DESCRIPTION
+    NanoTerm provides a simulated Unix-like terminal environment
+    running entirely in the browser. It features a virtual in-memory
+    filesystem, common shell commands, and a built-in text editor.
+
+COMMANDS
+    Type 'help' at the prompt for a complete list of commands.
+
+EDITOR
+    NanoTerm includes a nano-like text editor. Launch it with:
+        nano <filename>
+
+    Editor shortcuts:
+        Ctrl+O    Save file
+        Ctrl+X    Exit editor
+        Ctrl+K    Cut current line
+        Ctrl+U    Paste cut line(s)
+        Ctrl+W    Search
+        Ctrl+C    Show cursor position
+
+ENVIRONMENT
+    The following environment variables are set by default:
+        USER, HOME, SHELL, PATH, PWD, TERM, HOSTNAME
+
+FILES
+    /home/guest     User home directory
+    /etc            System configuration
+    /tmp            Temporary files
+    /var/log        Log files
+
+AUTHOR
+    NanoTerm - https://github.com/jonasholmer/nanoterm

@@ -4,7 +4,7 @@ import generatedOverlayRaw from './generated/fs-overlay.json?raw';
 
 export default defineNanoTermConfig({
   profile: {
-    showBanner: true,
+    startupCommands: ['motd'],
   },
   fs: {
     backend: 'memory',
