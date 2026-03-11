@@ -30,3 +30,4 @@ import './emoji';
 import './jq';
 import './curl';
 import './readvar';
+import './snapshot';

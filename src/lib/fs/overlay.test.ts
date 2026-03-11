@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { createDefaultFS } from './defaultFs';
 import { VirtualFS } from './filesystem';
-import { applyFSOverlay, emptyOverlay, forEachOverlayFile, parseOverlayJson } from './overlay';
+import { applyFSOverlay, createSnapshotOverlay, emptyOverlay, encodeOverlayForUrl, forEachOverlayFile, parseOverlayJson, parseOverlayParam } from './overlay';
 
 describe('overlay helpers', () => {
   it('returns empty overlay for invalid JSON', () => {
@@ -172,5 +172,24 @@ describe('overlay helpers', () => {
     expect(files).toEqual([
       '/home/guest/examples/basic/one.txt',
     ]);
+  });
+
+  it('round-trips a snapshot overlay through a URL parameter', () => {
+    const fs = new VirtualFS(createDefaultFS());
+    fs.writeFile('/home/guest/note.txt', 'hello');
+
+    const overlay = createSnapshotOverlay(fs.root);
+    const encoded = encodeOverlayForUrl(overlay);
+    const decoded = parseOverlayParam(encoded);
+    const files: Array<{ path: string; content: string }> = [];
+
+    forEachOverlayFile(decoded, (path, content) => {
+      files.push({ path, content });
+    });
+
+    expect(files).toContainEqual({
+      path: '/home/guest/note.txt',
+      content: 'hello',
+    });
   });
 });

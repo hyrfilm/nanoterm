@@ -43,7 +43,7 @@ export class VirtualFS {
     let current: FSNode = this.root;
     for (const part of parts) {
       if (!isDir(current)) return null;
-      const child = current.children.get(part);
+      const child = current.children[part];
       if (!child) return null;
       current = child;
     }
@@ -89,7 +89,7 @@ export class VirtualFS {
     const resolved = this.resolvePath(path);
     const node = this.getNode(resolved);
     if (!node || !isDir(node)) return null;
-    return Array.from(node.children.values()).sort((a, b) => a.name.localeCompare(b.name));
+    return Object.values(node.children).sort((a, b) => a.name.localeCompare(b.name));
   }
 
   writeFile(path: string, content: string): { ok: true } | { ok: false; error: string } {
@@ -97,13 +97,13 @@ export class VirtualFS {
     const info = this.getParentAndName(resolved);
     if (!info) return { ok: false, error: `Cannot write to ${path}` };
     const { parent, name } = info;
-    const existing = parent.children.get(name);
+    const existing = parent.children[name];
     if (existing && isDir(existing)) return { ok: false, error: `${path}: Is a directory` };
     if (existing && isFile(existing)) {
       existing.content = content;
       existing.modifiedAt = new Date();
     } else {
-      parent.children.set(name, makeFile(name, content, this.username));
+      parent.children[name] = makeFile(name, content, this.username);
     }
     return { ok: true };
   }
@@ -114,10 +114,10 @@ export class VirtualFS {
       const parts = resolved.split('/').filter(Boolean);
       let current = this.root;
       for (const part of parts) {
-        let child = current.children.get(part);
+        let child = current.children[part];
         if (!child) {
-          child = makeDir(part, new Map(), this.username);
-          current.children.set(part, child);
+          child = makeDir(part, {}, this.username);
+          current.children[part] = child;
         } else if (!isDir(child)) {
           return { ok: false, error: `${path}: Not a directory` };
         }
@@ -128,8 +128,8 @@ export class VirtualFS {
     const info = this.getParentAndName(resolved);
     if (!info) return { ok: false, error: `mkdir: cannot create directory '${path}': No such file or directory` };
     const { parent, name } = info;
-    if (parent.children.has(name)) return { ok: false, error: `mkdir: cannot create directory '${path}': File exists` };
-    parent.children.set(name, makeDir(name, new Map(), this.username));
+    if (name in parent.children) return { ok: false, error: `mkdir: cannot create directory '${path}': File exists` };
+    parent.children[name] = makeDir(name, {}, this.username);
     return { ok: true };
   }
 
@@ -139,10 +139,10 @@ export class VirtualFS {
     const info = this.getParentAndName(resolved);
     if (!info) return { ok: false, error: `rm: cannot remove '${path}': No such file or directory` };
     const { parent, name } = info;
-    const node = parent.children.get(name);
+    const node = parent.children[name];
     if (!node) return { ok: false, error: `rm: cannot remove '${path}': No such file or directory` };
     if (isDir(node) && !recursive) return { ok: false, error: `rm: cannot remove '${path}': Is a directory` };
-    parent.children.delete(name);
+    delete parent.children[name];
     return { ok: true };
   }
 
@@ -150,7 +150,7 @@ export class VirtualFS {
     const srcResolved = this.resolvePath(src);
     const srcInfo = this.getParentAndName(srcResolved);
     if (!srcInfo) return { ok: false, error: `mv: cannot stat '${src}': No such file or directory` };
-    const srcNode = srcInfo.parent.children.get(srcInfo.name);
+    const srcNode = srcInfo.parent.children[srcInfo.name];
     if (!srcNode) return { ok: false, error: `mv: cannot stat '${src}': No such file or directory` };
 
     let destResolved = this.resolvePath(dest);
@@ -162,9 +162,9 @@ export class VirtualFS {
     const destInfo = this.getParentAndName(destResolved);
     if (!destInfo) return { ok: false, error: `mv: cannot move to '${dest}': No such file or directory` };
 
-    srcInfo.parent.children.delete(srcInfo.name);
+    delete srcInfo.parent.children[srcInfo.name];
     srcNode.name = destInfo.name;
-    destInfo.parent.children.set(destInfo.name, srcNode);
+    destInfo.parent.children[destInfo.name] = srcNode;
     return { ok: true };
   }
 
@@ -184,7 +184,7 @@ export class VirtualFS {
     const destInfo = this.getParentAndName(destResolved);
     if (!destInfo) return { ok: false, error: `cp: cannot create '${dest}': No such file or directory` };
     clone.name = destInfo.name;
-    destInfo.parent.children.set(destInfo.name, clone);
+    destInfo.parent.children[destInfo.name] = clone;
     return { ok: true };
   }
 
@@ -192,9 +192,9 @@ export class VirtualFS {
     if (isFile(node)) {
       return { ...node, createdAt: new Date(node.createdAt), modifiedAt: new Date(node.modifiedAt) };
     }
-    const children = new Map<string, FSNode>();
-    for (const [name, child] of (node as DirNode).children) {
-      children.set(name, this.deepClone(child));
+    const children: Record<string, FSNode> = {};
+    for (const [name, child] of Object.entries((node as DirNode).children)) {
+      children[name] = this.deepClone(child);
     }
     return { ...node, children, createdAt: new Date(node.createdAt), modifiedAt: new Date(node.modifiedAt) } as DirNode;
   }
@@ -227,7 +227,7 @@ export class VirtualFS {
     if (!node || !isDir(node)) return [];
 
     const results: string[] = [];
-    for (const [name, child] of node.children) {
+    for (const [name, child] of Object.entries(node.children)) {
       if (name.startsWith(prefix)) {
         const base = partial.includes('/') ? partial.substring(0, partial.lastIndexOf('/') + 1) : '';
         results.push(base + name + (isDir(child) ? '/' : ''));
@@ -246,7 +246,7 @@ export class VirtualFS {
   private walkNode(currentPath: string, node: FSNode, depth: number, callback: (path: string, node: FSNode, depth: number) => void): void {
     callback(currentPath, node, depth);
     if (isDir(node)) {
-      const sorted = Array.from(node.children.values()).sort((a, b) => a.name.localeCompare(b.name));
+      const sorted = Object.values(node.children).sort((a, b) => a.name.localeCompare(b.name));
       for (const child of sorted) {
         const childPath = currentPath === '/' ? `/${child.name}` : `${currentPath}/${child.name}`;
         this.walkNode(childPath, child, depth + 1, callback);

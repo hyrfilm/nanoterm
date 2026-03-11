@@ -23,7 +23,7 @@ export interface FileNode extends FSNodeBase {
 
 export interface DirNode extends FSNodeBase {
   type: 'directory';
-  children: Map<string, FSNode>;
+  children: Record<string, FSNode>;
 }
 
 export type FSNode = FileNode | DirNode;
@@ -63,7 +63,7 @@ export function makeFile(name: string, content: string, owner = 'guest', group =
   return { name, type: 'file', content, permissions: defaultFilePerms(), owner, group, createdAt: now, modifiedAt: now };
 }
 
-export function makeDir(name: string, children: Map<string, FSNode> = new Map(), owner = 'guest', group = 'guest'): DirNode {
+export function makeDir(name: string, children: Record<string, FSNode> = {}, owner = 'guest', group = 'guest'): DirNode {
   const now = new Date();
   return { name, type: 'directory', children, permissions: defaultDirPerms(), owner, group, createdAt: now, modifiedAt: now };
 }

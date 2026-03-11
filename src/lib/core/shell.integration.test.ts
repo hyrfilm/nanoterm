@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { Shell } from './shell';
 import { resolveNanoTermConfig } from '../config';
 import type { NashSimpleCommand } from './nashPlan';
+import { forEachOverlayFile, parseOverlayParam } from '../fs/overlay';
 import '../commands/index';
 
 class FakeTerminal {
@@ -89,6 +90,27 @@ describe('Shell integration', () => {
     expect(terminal.output).toContain('guest@nanoterm');
     expect(terminal.output.indexOf('ready\r\n')).toBeLessThan(terminal.output.indexOf('guest@nanoterm'));
   });
+
+  it('emits beforeCommand and afterCommand around an input line', async () => {
+    const terminal = new FakeTerminal();
+    const shell = new Shell(terminal as any, resolveNanoTermConfig());
+    const events: string[] = [];
+
+    shell.on('beforeCommand', ({ line }) => {
+      events.push(`before:${line}`);
+    });
+    shell.on('afterCommand', ({ line, exitCode }) => {
+      events.push(`after:${line}:${exitCode}`);
+    });
+
+    shell.handleInput('echo hello\r');
+    await flushMicrotasks();
+
+    expect(events).toEqual([
+      'before:echo hello',
+      'after:echo hello:0',
+    ]);
+  });
 });
 
 function makeShell() {
@@ -133,6 +155,30 @@ describe('readvar', () => {
     await shell.executeCommand({ argvTemplates: ['echo', 'hello $NAME'], redirects: [] });
 
     expect(terminal.output).toContain('hello world');
+  });
+});
+
+describe('snapshot', () => {
+  it('prints an overlay link for the current filesystem', async () => {
+    const { terminal, shell, run } = makeShell();
+    shell.fs.writeFile('/home/guest/note.txt', 'hello');
+
+    const exitCode = await run(['snapshot']);
+
+    expect(exitCode).toBe(0);
+    const overlayParam = terminal.output.match(/\?overlay=([A-Za-z0-9\-_]+)/)?.[1];
+    expect(overlayParam).toBeTruthy();
+
+    const overlay = parseOverlayParam(overlayParam);
+    const files: Array<{ path: string; content: string }> = [];
+    forEachOverlayFile(overlay, (path, content) => {
+      files.push({ path, content });
+    });
+
+    expect(files).toContainEqual({
+      path: '/home/guest/note.txt',
+      content: 'hello',
+    });
   });
 });
 

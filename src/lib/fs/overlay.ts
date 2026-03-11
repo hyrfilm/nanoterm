@@ -1,3 +1,6 @@
+import type { DirNode, FSNode } from './types';
+import { isDir, isFile } from './types';
+
 type OverlayTree = Record<string, unknown>;
 type OverlayType = 'text' | 'json' | 'base64';
 type OverlayOp = { '+': string } | { '-': string };
@@ -13,6 +16,9 @@ export interface FSOverlay {
 export const emptyOverlay: FSOverlay = {
   '/': {},
 };
+
+const textEncoder = new TextEncoder();
+const textDecoder = new TextDecoder();
 
 function isObject(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
@@ -135,6 +141,62 @@ function decodeBase64ToBinaryString(value: string): string {
   return value;
 }
 
+function encodeBinaryStringToBase64(value: string): string {
+  const bufferCtor = (globalThis as { Buffer?: { from: (input: string, encoding: string) => { toString: (format: string) => string } } }).Buffer;
+  if (bufferCtor) {
+    return bufferCtor.from(value, 'binary').toString('base64');
+  }
+
+  if (typeof btoa === 'function') {
+    return btoa(value);
+  }
+
+  return value;
+}
+
+function bytesToBase64(bytes: Uint8Array): string {
+  const bufferCtor = (globalThis as { Buffer?: { from: (input: Uint8Array) => { toString: (format: string) => string } } }).Buffer;
+  if (bufferCtor) {
+    return bufferCtor.from(bytes).toString('base64');
+  }
+
+  let binary = '';
+  for (const byte of bytes) {
+    binary += String.fromCharCode(byte);
+  }
+  return btoa(binary);
+}
+
+function base64ToBytes(value: string): Uint8Array {
+  const bufferCtor = (globalThis as { Buffer?: { from: (input: string, encoding: string) => Uint8Array } }).Buffer;
+  if (bufferCtor) {
+    return new Uint8Array(bufferCtor.from(value, 'base64'));
+  }
+
+  const binary = atob(value);
+  const bytes = new Uint8Array(binary.length);
+  for (let index = 0; index < binary.length; index += 1) {
+    bytes[index] = binary.charCodeAt(index);
+  }
+  return bytes;
+}
+
+function encodeBase64Url(value: string): string {
+  return value.replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/g, '');
+}
+
+function decodeBase64Url(value: string): string {
+  const normalized = value.replace(/-/g, '+').replace(/_/g, '/');
+  const padding = normalized.length % 4 === 0 ? '' : '='.repeat(4 - (normalized.length % 4));
+  return normalized + padding;
+}
+
+function looksBinaryString(value: string): boolean {
+  if (value.includes('\u0000')) return true;
+  const suspiciousChars = value.match(/[\u0001-\u0008\u000B\u000C\u000E-\u001A]/g)?.length || 0;
+  return suspiciousChars > value.length * 0.1;
+}
+
 function normalizeOverlay(value: unknown): FSOverlay {
   if (!isObject(value)) return emptyOverlay;
 
@@ -155,6 +217,21 @@ export function parseOverlayJson(rawJson: string): FSOverlay {
     return normalizeOverlay(JSON.parse(rawJson));
   } catch {
     return emptyOverlay;
+  }
+}
+
+export function encodeOverlayForUrl(overlay: FSOverlay): string {
+  return encodeBase64Url(bytesToBase64(textEncoder.encode(JSON.stringify(overlay))));
+}
+
+export function parseOverlayParam(rawValue: string | null | undefined): FSOverlay {
+  if (!rawValue) return emptyOverlay;
+
+  try {
+    const json = textDecoder.decode(base64ToBytes(decodeBase64Url(rawValue)));
+    return parseOverlayJson(json);
+  } catch {
+    return parseOverlayJson(rawValue);
   }
 }
 
@@ -268,4 +345,59 @@ export function applyFSOverlay(
   forEachOverlayFile(overlay, (absolutePath, content) => {
     writeOverlayFile(fs, absolutePath, content);
   });
+}
+
+export function createSnapshotOverlay(root: DirNode): FSOverlay {
+  const tree: OverlayTree = {};
+  const types: OverlayTree = {};
+
+  const collectSnapshot = (node: FSNode): { value: unknown; types?: OverlayTree | OverlayType } => {
+    if (isFile(node)) {
+      if (looksBinaryString(node.content)) {
+        return {
+          value: encodeBinaryStringToBase64(node.content),
+          types: 'base64',
+        };
+      }
+      return { value: node.content };
+    }
+
+    const value: OverlayTree = {};
+    const nestedTypes: OverlayTree = {};
+
+    for (const child of Object.values(node.children)) {
+      const snapshot = collectSnapshot(child);
+      value[child.name] = snapshot.value;
+      if (snapshot.types) {
+        nestedTypes[child.name] = snapshot.types;
+      }
+    }
+
+    return {
+      value,
+      types: isEmptyObject(nestedTypes) ? undefined : nestedTypes,
+    };
+  };
+
+  for (const child of Object.values(root.children)) {
+    const snapshot = collectSnapshot(child);
+    tree[child.name] = snapshot.value;
+    if (snapshot.types) {
+      types[child.name] = snapshot.types;
+    }
+  }
+
+  const overlay: FSOverlay = {
+    '/': tree,
+  };
+
+  if (!isEmptyObject(types)) {
+    overlay._ = {
+      types: {
+        '/': types,
+      },
+    };
+  }
+
+  return overlay;
 }

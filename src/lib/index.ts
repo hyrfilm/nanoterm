@@ -11,8 +11,9 @@ export { registry } from './core/commandRegistry';
 export type { CommandDefinition, CommandContext, CommandResult, CommandHandler } from './core/commandRegistry';
 export { defineNanoTermConfig } from './config';
 export type { NanoTermConfig, NanoTermProfileConfig, NanoTermFsConfig, NanoTermTerminalConfig, ResolvedNanoTermConfig } from './config';
+export type { ShellEvents } from './core/shell';
 export type { FSOverlay } from './fs/overlay';
-export { applyFSOverlay, forEachOverlayFile, parseOverlayJson, emptyOverlay } from './fs/overlay';
+export { applyFSOverlay, createSnapshotOverlay, encodeOverlayForUrl, forEachOverlayFile, parseOverlayJson, parseOverlayParam, emptyOverlay } from './fs/overlay';
 
 export interface NanoTermInstance {
   terminal: Terminal;

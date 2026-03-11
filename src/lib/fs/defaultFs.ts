@@ -1,7 +1,7 @@
 import { makeDir, type DirNode, type FSNode } from './types';
 
-function m(entries: [string, FSNode][]): Map<string, FSNode> {
-  return new Map(entries);
+function m(entries: [string, FSNode][]): Record<string, FSNode> {
+  return Object.fromEntries(entries);
 }
 
 export function createDefaultFS(): DirNode {
@@ -20,10 +20,10 @@ export function createDefaultFS(): DirNode {
       ]), 'root', 'root')],
     ]), 'root', 'root')],
     ['usr', makeDir('usr', m([
-      ['bin', makeDir('bin', new Map(), 'root', 'root')],
+      ['bin', makeDir('bin', {}, 'root', 'root')],
       ['share', makeDir('share', m([
         ['doc', makeDir('doc', m([
-          ['nanoterm', makeDir('nanoterm', new Map(), 'root', 'root')],
+          ['nanoterm', makeDir('nanoterm', {}, 'root', 'root')],
         ]), 'root', 'root')],
       ]), 'root', 'root')],
     ]), 'root', 'root')],
