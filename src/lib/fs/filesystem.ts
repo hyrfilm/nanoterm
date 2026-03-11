@@ -43,7 +43,8 @@ export class VirtualFS {
     let current: FSNode = this.root;
     for (const part of parts) {
       if (!isDir(current)) return null;
-      const child = current.children[part];
+      // @ts-ignore
+        const child = current.children[part];
       if (!child) return null;
       current = child;
     }
