@@ -113,6 +113,7 @@ Overlay format:
 }
 ```
 
+* by default `~/.nashrc` is run at startup.
 * `"/"` is the filesystem root
 * strings are text files by default
 * plain objects are directories by default
@@ -161,6 +162,7 @@ grep
 head
 help
 history
+infomsg
 jq
 ls
 mkdir
@@ -171,6 +173,7 @@ pwd
 readvar
 rm
 snapshot
+sleep
 tail
 touch
 tree

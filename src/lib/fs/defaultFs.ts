@@ -1,4 +1,4 @@
-import { makeDir, type DirNode, type FSNode } from './types';
+import { makeDir, makeFile, type DirNode, type FSNode } from './types';
 
 function m(entries: [string, FSNode][]): Record<string, FSNode> {
   return Object.fromEntries(entries);
@@ -8,6 +8,7 @@ export function createDefaultFS(): DirNode {
   const root = makeDir('', m([
     ['home', makeDir('home', m([
       ['guest', makeDir('guest', m([
+        ['.nashrc', makeFile('.nashrc', '# nanoterm shell config\nmotd\ninfomsg\n')],
         ['documents', makeDir('documents')],
         ['projects', makeDir('projects')],
       ]))],

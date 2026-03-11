@@ -7,7 +7,7 @@
     },
     "home": {
       "guest": {
-        ".bashrc": "# nanoterm shell config\nexport PS1=\"\\u@nanoterm:\\w$ \"\n",
+        ".nashrc": "# nanoterm shell config\nmotd\ninfomsg\n",
         "documents": {
           "notes.txt": "# TODO\n\n- [x] Set up nanoterm\n- [ ] Finish classification\n- [ ] Take a break\n\n**TODO:** Classify these animals\n- [x] belonging to the Emperor\n- [x] embalmed\n- [x] trained\n- [x] piglets\n- [x] sirens\n- [x] fabulous\n- [x] stray dogs\n- [ ] included in this classification\n- [ ] trembling like crazy\n- [ ] innumerables\n- [ ] drawn with a very fine camelhair brush\n- [ ] et cetera\n- [ ] just broke the vase\n- [ ] from a distance look like flies\n",
           "readme.md": "# Welcome\n\n## Quick Start\n\n  ls              List files in the current directory\n  cd <dir>        Change directory\n  cat <file>      View file contents\n  nano <file>     Edit a file\n  help            Show all available commands\n\n## Tips\n\n- Use Tab for auto-completion\n- Use Up/Down arrows to browse command history\n- Ctrl+C to cancel the current line\n- Ctrl+L to clear the screen\n\nVisit https://github.com/hyrfilm/nanoterm for more info.\n"

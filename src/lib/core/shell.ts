@@ -68,21 +68,38 @@ export class Shell implements CommandExecutor {
   }
 
   private async runStartupCommands(): Promise<void> {
+    const home = this.env.get('HOME') || this.fs.home;
+    const rcFile = this.fs.readFile(`${home}/.nashrc`);
+    if (rcFile) {
+      for (const line of rcFile.split(/\r?\n/)) {
+        const input = line.trim();
+        if (!input || input.startsWith('#')) {
+          continue;
+        }
+
+        await this.runStartupLine(input);
+      }
+    }
+
     for (const commandLine of this.config.profile.startupCommands) {
       const input = commandLine.trim();
       if (!input) {
         continue;
       }
 
-      const planned = this.planner.parse(input);
-      if (!planned.ok) {
-        this.terminal.writeln(`startup error: ${planned.error}`);
-        continue;
-      }
-
-      await executePlan(planned.plan, this);
-      this.env.set('PWD', this.fs.cwd);
+      await this.runStartupLine(input);
     }
+  }
+
+  private async runStartupLine(input: string): Promise<void> {
+    const planned = this.planner.parse(input);
+    if (!planned.ok) {
+      this.terminal.writeln(`startup error: ${planned.error}`);
+      return;
+    }
+
+    await executePlan(planned.plan, this);
+    this.env.set('PWD', this.fs.cwd);
   }
 
   handleInput(data: string): void {

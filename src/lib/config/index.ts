@@ -1,7 +1,9 @@
 import { emptyOverlay, type FSOverlay } from '../fs/overlay';
+import {dim, reset, underline} from "../core/ansi";
 
 export interface NanoTermProfileConfig {
   startupCommands?: string[];
+  infoMsg?: boolean | string;
   env?: Record<string, string>;
 }
 
@@ -74,6 +76,14 @@ const defaultEnv: Record<string, string> = {
   LANG: 'en_US.UTF-8',
 };
 
+const defaultInfoMsg = `
+ ${dim}browser-based terminal emulator${reset}
+ ${dim}type '${reset}help${reset}' for available commands${dim}
+
+ ${underline}https://github.com/hyrfilm/nanoterm${reset} 
+ 
+`;
+
 const defaultTheme: Required<NonNullable<NanoTermTerminalConfig['theme']>> = {
   background: '#1a1b26',
   foreground: '#a9b1d6',
@@ -104,12 +114,20 @@ export function defineNanoTermConfig(config: NanoTermConfig): NanoTermConfig {
 }
 
 export function resolveNanoTermConfig(config: NanoTermConfig = {}): ResolvedNanoTermConfig {
+  const infoMsg = config.profile?.infoMsg ?? true;
+  const resolvedInfoMsg = infoMsg === false
+    ? null
+    : typeof infoMsg === 'string'
+      ? infoMsg
+      : defaultInfoMsg;
+
   return {
     profile: {
       startupCommands: config.profile?.startupCommands ?? [],
       env: {
         ...defaultEnv,
         ...(config.profile?.env || {}),
+        NANOTERM_INFO_MSG: resolvedInfoMsg ?? '',
       },
     },
     fs: {

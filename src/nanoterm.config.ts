@@ -7,9 +7,6 @@ const runtimeOverlayParam = typeof window !== 'undefined'
   : null;
 
 export default defineNanoTermConfig({
-  profile: {
-    startupCommands: ['motd'],
-  },
   fs: {
     backend: 'memory',
     localStorageKey: 'nanoterm:v1',
