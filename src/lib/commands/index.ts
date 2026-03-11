@@ -25,8 +25,6 @@ import './exportCmd';
 import './env';
 import './motd';
 import './nano';
-import './record';
-import './replay';
 import './ascii';
 import './emoji';
 import './jq';
