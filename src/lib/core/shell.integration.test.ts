@@ -71,13 +71,28 @@ describe('Shell integration', () => {
     const exitCode = await shell.executeCommand({ argvTemplates: ['motd'], redirects: [] });
 
     expect(exitCode).toBe(0);
-    expect(terminal.output).toContain('browser-based terminal emulator');
+    expect(terminal.output).toContain('_   _');
+  });
+
+  it('prints the configured info message', async () => {
+    const terminal = new FakeTerminal();
+    const shell = new Shell(terminal as any, resolveNanoTermConfig({
+      profile: {
+        infoMsg: 'custom banner',
+      },
+    }));
+
+    const exitCode = await shell.executeCommand({ argvTemplates: ['infomsg'], redirects: [] });
+
+    expect(exitCode).toBe(0);
+    expect(terminal.output).toContain('custom banner\r\n');
   });
 
   it('runs startup commands before first prompt', async () => {
     const terminal = new FakeTerminal();
     const config = resolveNanoTermConfig({
       profile: {
+        infoMsg: false,
         startupCommands: ['echo ready'],
       },
     });
@@ -89,6 +104,49 @@ describe('Shell integration', () => {
     expect(terminal.output).toContain('ready\r\n');
     expect(terminal.output).toContain('guest@nanoterm');
     expect(terminal.output.indexOf('ready\r\n')).toBeLessThan(terminal.output.indexOf('guest@nanoterm'));
+  });
+
+  it('runs .nashrc before the first prompt', async () => {
+    const terminal = new FakeTerminal();
+    const shell = new Shell(terminal as any, resolveNanoTermConfig());
+
+    shell.start();
+    await flushMicrotasks();
+
+    expect(terminal.output).toContain('_   _');
+    expect(terminal.output).toContain('browser-based terminal emulator');
+    expect(terminal.output.indexOf('_   _')).toBeLessThan(terminal.output.indexOf('browser-based terminal emulator'));
+    expect(terminal.output.indexOf('browser-based terminal emulator')).toBeLessThan(terminal.output.indexOf('guest@nanoterm'));
+  });
+
+  it('skips info message when explicitly disabled', async () => {
+    const terminal = new FakeTerminal();
+    const shell = new Shell(terminal as any, resolveNanoTermConfig({
+      profile: {
+        infoMsg: false,
+      },
+    }));
+
+    shell.start();
+    await flushMicrotasks();
+
+    expect(terminal.output).not.toContain('browser-based terminal emulator');
+    expect(terminal.output).toContain('guest@nanoterm');
+  });
+
+  it('renders a custom info message override', async () => {
+    const terminal = new FakeTerminal();
+    const shell = new Shell(terminal as any, resolveNanoTermConfig({
+      profile: {
+        infoMsg: 'custom banner',
+      },
+    }));
+
+    shell.start();
+    await flushMicrotasks();
+
+    expect(terminal.output).toContain('custom banner\r\n');
+    expect(terminal.output).not.toContain('browser-based terminal emulator');
   });
 
   it('emits beforeCommand and afterCommand around an input line', async () => {

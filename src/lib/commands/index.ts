@@ -24,6 +24,7 @@ import './chmod';
 import './exportCmd';
 import './env';
 import './motd';
+import './infomsg';
 import './nano';
 import './ascii';
 import './emoji';
