@@ -21,16 +21,6 @@ createNanoTerm(document.getElementById('terminal')!);
 
 By default this uses the built-in in-memory filesystem. The same overlay helpers can also be used against your own filesystem or persistence layer.
 
-The shell reads `~/.nashrc` on startup. By default that profile runs `motd` and `infomsg`. Disable the info message with `profile.infoMsg = false`, or replace it with a custom string.
-
-```ts
-createNanoTerm(document.getElementById('terminal')!, {
-  profile: {
-    infoMsg: 'custom banner',
-  },
-});
-```
-
 Styling:
 
 ```ts
@@ -123,6 +113,7 @@ Overlay format:
 }
 ```
 
+* by default `~/.nashrc` is run at startup.
 * `"/"` is the filesystem root
 * strings are text files by default
 * plain objects are directories by default
