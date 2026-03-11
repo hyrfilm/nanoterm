@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { Shell } from './shell';
 import { resolveNanoTermConfig } from '../config';
 import type { NashSimpleCommand } from './nashPlan';
@@ -213,6 +213,39 @@ describe('readvar', () => {
     await shell.executeCommand({ argvTemplates: ['echo', 'hello $NAME'], redirects: [] });
 
     expect(terminal.output).toContain('hello world');
+  });
+});
+
+describe('sleep', () => {
+  it('waits for fractional seconds', async () => {
+    vi.useFakeTimers();
+    try {
+      const { run } = makeShell();
+      let settled = false;
+
+      const pending = run(['sleep', '0.1']).then((exitCode) => {
+        settled = true;
+        return exitCode;
+      });
+
+      await vi.advanceTimersByTimeAsync(99);
+      expect(settled).toBe(false);
+
+      await vi.advanceTimersByTimeAsync(1);
+      await expect(pending).resolves.toBe(0);
+      expect(settled).toBe(true);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('rejects invalid durations', async () => {
+    const { terminal, run } = makeShell();
+
+    const exitCode = await run(['sleep', '-1']);
+
+    expect(exitCode).toBe(1);
+    expect(terminal.output).toContain('sleep: invalid duration: -1');
   });
 });
 

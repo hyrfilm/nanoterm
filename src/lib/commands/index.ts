@@ -32,3 +32,4 @@ import './jq';
 import './curl';
 import './readvar';
 import './snapshot';
+import './sleep';

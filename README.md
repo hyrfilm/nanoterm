@@ -182,6 +182,7 @@ pwd
 readvar
 rm
 snapshot
+sleep
 tail
 touch
 tree
