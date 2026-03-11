@@ -12,7 +12,7 @@ export type { CommandDefinition, CommandContext, CommandResult, CommandHandler }
 export { defineNanoTermConfig } from './config';
 export type { NanoTermConfig, NanoTermProfileConfig, NanoTermFsConfig, NanoTermTerminalConfig, ResolvedNanoTermConfig } from './config';
 export type { FSOverlay } from './fs/overlay';
-export { parseOverlayJson, emptyOverlay } from './fs/overlay';
+export { applyFSOverlay, forEachOverlayFile, parseOverlayJson, emptyOverlay } from './fs/overlay';
 
 export interface NanoTermInstance {
   terminal: Terminal;

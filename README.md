@@ -9,7 +9,7 @@
 * bring your own filesystem, or use one of the provided:
 * * in-memory - **default**
 * * localStorage - for client-side persistence
-* * apply a docker-style file system overlay at build-time (available for all filesystems)
+* * apply a file system overlay at build-time or runtime (available for all filesystems)
 * custom commands, configurable styling, tree-shakable.
 
 ## install
@@ -22,6 +22,49 @@ npm install nanoterm
 import { createNanoTerm } from 'nanoterm';
 createNanoTerm(document.getElementById('terminal')!);
 ```
+
+```ts
+import { applyFSOverlay, forEachOverlayFile, parseOverlayJson } from 'nanoterm';
+
+const overlay = parseOverlayJson(rawOverlayJson);
+applyFSOverlay(myFilesystem, overlay);
+
+forEachOverlayFile(overlay, (path, content) => {
+  console.log(path, content);
+});
+```
+
+The recursive walk is public, so another repo does not need to reimplement overlay traversal just to materialize files differently.
+
+Overlay JSON follows the filesystem shape directly:
+
+```json
+{
+  "/": {
+    "etc": {
+      "message.txt": "hello",
+      "config.json": { "theme": "dark" },
+      "logo.bin": "YWJj"
+    }
+  },
+  "_": {
+    "types": {
+      "/": {
+        "etc": {
+          "config.json": "json",
+          "logo.bin": "base64"
+        }
+      }
+    },
+    "ops": [
+      { "-": "examples/" },
+      { "+": "examples/basic" }
+    ]
+  }
+}
+```
+
+Strings are text files by default. Plain objects are directories unless `_.types` marks that path as `json` or `base64`.
 
 ## commands
 * comes pre-packaged with the following commands:
