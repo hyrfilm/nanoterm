@@ -1,4 +1,5 @@
 import { emptyOverlay, type FSOverlay } from '../fs/overlay';
+import {dim, reset, underline} from "../core/ansi";
 
 export interface NanoTermProfileConfig {
   startupCommands?: string[];
@@ -75,10 +76,13 @@ const defaultEnv: Record<string, string> = {
   LANG: 'en_US.UTF-8',
 };
 
-const defaultInfoMsg = `browser-based terminal emulator
-type 'help' for available commands
+const defaultInfoMsg = `
+ ${dim}browser-based terminal emulator${reset}
+ ${dim}type '${reset}help${reset}' for available commands${dim}
 
-https://github.com/hyrfilm/nanoterm`;
+ ${underline}https://github.com/hyrfilm/nanoterm${reset} 
+ 
+`;
 
 const defaultTheme: Required<NonNullable<NanoTermTerminalConfig['theme']>> = {
   background: '#1a1b26',
