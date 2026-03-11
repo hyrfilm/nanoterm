@@ -19,7 +19,7 @@ import { createNanoTerm } from 'nanoterm';
 createNanoTerm(document.getElementById('terminal')!);
 ```
 
-By default this uses the built-in in-memory filesystem. The same overlay helpers can also be used against your own filesystem or persistence layer.
+By default this uses the built-in in-memory filesystem. This can be changed to instead use localStorage for client-side persistence.
 
 Styling:
 
