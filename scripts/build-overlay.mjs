@@ -62,7 +62,7 @@ function parseArgs(argv) {
 function setPath(tree, parts, value) {
   let current = tree;
   for (const part of parts.slice(0, -1)) {
-    if (!(part in current)) {
+    if (!current[part] || typeof current[part] !== 'object' || Array.isArray(current[part])) {
       current[part] = {};
     }
     current = current[part];
@@ -107,16 +107,12 @@ async function buildOverlay({ fromDir, exclude }) {
 
   files.sort((left, right) => left.localeCompare(right));
 
-  const overlay = {
-    json: {},
-    text: {},
-    binary: {},
-  };
-
+  const root = {};
+  const types = {};
   const stats = {
     json: 0,
     text: 0,
-    binary: 0,
+    base64: 0,
   };
 
   for (const relativePath of files) {
@@ -128,24 +124,38 @@ async function buildOverlay({ fromDir, exclude }) {
       const maybeText = decodeUtf8(content);
       if (maybeText !== null) {
         try {
-          setPath(overlay.json, parts, JSON.parse(maybeText));
+          setPath(root, parts, JSON.parse(maybeText));
+          setPath(types, parts, 'json');
           stats.json += 1;
           continue;
         } catch {
-          // fall through and classify as text/binary
+          // fall through and classify as text/base64
         }
       }
     }
 
     const maybeText = decodeUtf8(content);
     if (maybeText !== null) {
-      setPath(overlay.text, parts, maybeText);
+      setPath(root, parts, maybeText);
       stats.text += 1;
       continue;
     }
 
-    setPath(overlay.binary, parts, content.toString('base64'));
-    stats.binary += 1;
+    setPath(root, parts, content.toString('base64'));
+    setPath(types, parts, 'base64');
+    stats.base64 += 1;
+  }
+
+  const overlay = {
+    '/': root,
+  };
+
+  if (Object.keys(types).length > 0) {
+    overlay._ = {
+      types: {
+        '/': types,
+      },
+    };
   }
 
   return { overlay, stats, totalFiles: files.length };
@@ -173,11 +183,10 @@ async function main() {
 
   console.log(`Overlay generated: ${outPath}`);
   console.log(`Files processed: ${totalFiles}`);
-  console.log(`JSON: ${stats.json}, text: ${stats.text}, binary: ${stats.binary}`);
+  console.log(`JSON: ${stats.json}, text: ${stats.text}, base64: ${stats.base64}`);
 }
 
 main().catch((error) => {
   console.error(`overlay build failed: ${error.message}`);
   process.exitCode = 1;
 });
-

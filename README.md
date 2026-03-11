@@ -1,18 +1,13 @@
 # nanoterm
-## unix terminal emulator
-### in your browser
+### tiny unix in the browser
+
 [![ezgif-32cea9241ed81b54](https://github.com/user-attachments/assets/0e5f3ab4-9d00-4fb2-a698-5e947a6273a9)](https://hyrfilm.github.io/nanoterm/)
 
 * built on [xterm.js](https://github.com/xtermjs/xterm.js/)
 * use as a library from TS/JS
-* pluggable shell (provides [its own](#nash) by default.)
-* bring your own filesystem, or use one of the provided:
-* * in-memory - **default**
-* * localStorage - for client-side persistence
-* * apply a docker-style file system overlay at build-time (available for all filesystems)
-* custom commands, configurable styling, tree-shakable.
-
-## install
+* pluggable shell (uses [nash](#nash) by default)
+* built-in virtual filesystem plus overlays
+* custom commands, configurable styling, tree-shakable
 
 ```bash
 npm install nanoterm
@@ -20,37 +15,162 @@ npm install nanoterm
 
 ```ts
 import { createNanoTerm } from 'nanoterm';
+
 createNanoTerm(document.getElementById('terminal')!);
 ```
 
-## sharing snapshots
-* the local state of the emulator can be stored as snapshots, shared and played back.
-Who hasn't asked a Magic 8ball about something regarding their future? Well, finally you can [turn that answer into ascii-art](https://hyrfilm.github.io/nanoterm?replay=eyJjb21tYW5kcyI6W1siaGVscCJdLFsibHMiXSxbInRyZWUiXSxbIndob2FtaSJdLFsiY3VybCIsImh0dHBzOi8vdGNwZGF0YS5jb20vOGJhbGwiXSxbImNhdCIsImZvcnR1bmUuanNvbiJdLFsianEiLCItciIsImFuc3dlciIsImZvcnR1bmUuanNvbiJdLFsicmVhZHZhciIsIkFOU1dFUiIsImFuc3dlci50eHQiXSxbImVjaG8iLCJDYW5ub3QgcHJlZGljdCBub3ciXSxbImN1cmwiLCJodHRwczovL3RjcGRhdGEuY29tL2FzY2lpL0Nhbm5vdCBwcmVkaWN0IG5vdyJdLFsiY2F0IiwiZm9ydHVuZS5hc2NpaSJdLFsiY2xlYXIiXSxbImpxIiwiLXIiLCJhc2NpaSIsImZvcnR1bmUuYXNjaWkiXV0sInJlZGlyZWN0cyI6W1tdLFtdLFtdLFtdLFt7ImZkIjoic3Rkb3V0IiwibW9kZSI6InRydW5jYXRlIiwidGFyZ2V0VGVtcGxhdGUiOiJmb3J0dW5lLmpzb24ifV0sW10sW3siZmQiOiJzdGRvdXQiLCJtb2RlIjoidHJ1bmNhdGUiLCJ0YXJnZXRUZW1wbGF0ZSI6ImFuc3dlci50eHQifV0sW10sW10sW3siZmQiOiJzdGRvdXQiLCJtb2RlIjoidHJ1bmNhdGUiLCJ0YXJnZXRUZW1wbGF0ZSI6ImZvcnR1bmUuYXNjaWkifV0sW10sW10sW11dLCJ0cyI6WzI4MDcsODEyNiwxMDMwNCwxNDYwMiwyNjMyMSwyOTk4MSwzOTQ0Nyw0MzY5Niw0ODI0OSw1NjE2OSw2NzM4Miw3ODM5Myw4MDY2M119) 
-* Use the `help` with the `record` & `replay` command for more info on how this is done.
+By default this uses the built-in in-memory filesystem. The same overlay helpers can also be used against your own filesystem or persistence layer.
 
-## commands
-* comes pre-packaged with the following commands:
+Styling:
+
+```ts
+import { createNanoTerm } from 'nanoterm';
+
+createNanoTerm(document.getElementById('terminal')!, {
+  terminal: {
+    fontSize: 16,
+    cursorBlink: false,
+    theme: {
+      background: '#101418',
+      foreground: '#e6edf3',
+      green: '#7ee787',
+    },
+  },
+});
+```
+
+Commands:
+
+```ts
+import { createNanoTerm, registry } from 'nanoterm';
+
+registry.register({
+  name: 'rev',
+  description: 'reverse a string',
+  usage: 'rev <text>',
+  handler: (ctx) => (ctx.writeStdout(`${ctx.args.join(' ').split('').reverse().join('')}\r\n`), { exitCode: 0 }),
+});
+
+createNanoTerm(document.getElementById('terminal')!);
+```
+
 ```bash
+rev nanoterm
+mretonan
+```
+
+Filesystem:
+
+Nanoterm boots a virtual Unix-like filesystem. If you want to add a few files, think overlay. If you want a completely different machine, point the overlay builder at another directory and use that as the bundle.
+
+Appending a few files:
+
+```json
+{
+  "/": {
+    "home": {
+      "guest": {
+        "notes.txt": "hello"
+      }
+    }
+  }
+}
+```
+
+Building an overlay from a directory:
+
+```bash
+node scripts/build-overlay.mjs --fromDir ./overlay --out ./src/generated/fs-overlay.json
+```
+
+Docker's overlay model is a reasonable mental model here, especially if you just want to append or replace paths.
+
+Overlay format:
+
+```json
+{
+  "/": {
+    "etc": {
+      "message.txt": "hello",
+      "config.json": { "theme": "dark" },
+      "logo.bin": "YWJj"
+    }
+  },
+  "_": {
+    "types": {
+      "/": {
+        "etc": {
+          "config.json": "json",
+          "logo.bin": "base64"
+        }
+      }
+    },
+    "ops": [
+      { "-": "examples/" },
+      { "+": "examples/basic" }
+    ]
+  }
+}
+```
+
+* `"/"` is the filesystem root
+* strings are text files by default
+* plain objects are directories by default
+* `_.types` is only for exceptions such as `json` and `base64`
+* `_.ops` filters which parts of the overlay should be visible
+
+Overlays can also be applied at runtime:
+
+```ts
+import { applyFSOverlay, parseOverlayJson } from 'nanoterm';
+
+const overlay = parseOverlayJson(rawOverlayJson);
+applyFSOverlay(myFilesystem, overlay);
+```
+
+The built-in `snapshot` command prints a link that uses this same `?overlay=...` mechanism.
+
+If you want the walked files instead:
+
+```ts
+import { forEachOverlayFile, parseOverlayJson } from 'nanoterm';
+
+const overlay = parseOverlayJson(rawOverlayJson);
+
+forEachOverlayFile(overlay, (path, content) => {
+  console.log(path, content);
+});
+```
+
+Built-in commands:
+
+```bash
+ascii
 cat
 cd
 chmod
 clear
 cp
+curl
 date
 echo
+emoji
 env
 export
 grep
 head
 help
 history
+jq
 ls
 mkdir
 motd
 mv
 nano
 pwd
+readvar
 rm
+snapshot
 tail
 touch
 tree
@@ -61,5 +181,7 @@ wc
 ```
 
 ## nash
-The default shell is `nash`. Not intended to provide POSIX shell compatibility. It supports variable expansion, `NAME=value` assignment, `&&`, and stdout redirects (`>`/`>>`). It does not yet implement pipes, `||`, subshells, globbing, or stdin/stderr redirects.
-The js code for the shell interpreter is generated from an OCaml spec, included [here](https://github.com/hyrfilm/nanoterm/tree/main/nash) 
+
+The default shell is `nash`. It supports variable expansion, `NAME=value` assignment, `&&`, and stdout redirects (`>` / `>>`). It does not currently support pipes, `||`, subshells, globbing, or stdin/stderr redirects.
+
+The JS code for the shell interpreter is generated from the OCaml spec in [nash](https://github.com/hyrfilm/nanoterm/tree/main/nash).

@@ -1,6 +1,5 @@
 {
-  "json": {},
-  "text": {
+  "/": {
     "etc": {
       "hostname": "nanoterm\n",
       "os-release": "NAME=\"nanoterm os\"\nVERSION=\"1.0\"\nID=nanoterm\n",
@@ -33,6 +32,5 @@
         "syslog": "System initialized.\nAll services started.\n"
       }
     }
-  },
-  "binary": {}
+  }
 }

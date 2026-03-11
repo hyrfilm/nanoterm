@@ -1,9 +1,9 @@
-import { describe, expect, it, afterEach, vi } from 'vitest';
+import { describe, expect, it } from 'vitest';
 import { Shell } from './shell';
 import { resolveNanoTermConfig } from '../config';
 import type { NashSimpleCommand } from './nashPlan';
+import { forEachOverlayFile, parseOverlayParam } from '../fs/overlay';
 import '../commands/index';
-import { isRecording, stopRecording, encodeRecording } from '../commands/recorder';
 
 class FakeTerminal {
   cols = 80;
@@ -90,6 +90,27 @@ describe('Shell integration', () => {
     expect(terminal.output).toContain('guest@nanoterm');
     expect(terminal.output.indexOf('ready\r\n')).toBeLessThan(terminal.output.indexOf('guest@nanoterm'));
   });
+
+  it('emits beforeCommand and afterCommand around an input line', async () => {
+    const terminal = new FakeTerminal();
+    const shell = new Shell(terminal as any, resolveNanoTermConfig());
+    const events: string[] = [];
+
+    shell.on('beforeCommand', ({ line }) => {
+      events.push(`before:${line}`);
+    });
+    shell.on('afterCommand', ({ line, exitCode }) => {
+      events.push(`after:${line}:${exitCode}`);
+    });
+
+    shell.handleInput('echo hello\r');
+    await flushMicrotasks();
+
+    expect(events).toEqual([
+      'before:echo hello',
+      'after:echo hello:0',
+    ]);
+  });
 });
 
 function makeShell() {
@@ -98,93 +119,6 @@ function makeShell() {
   const run = (argv: string[]) => shell.executeCommand({ argvTemplates: argv, redirects: [] });
   return { terminal, shell, run };
 }
-
-describe('record / replay', () => {
-  afterEach(() => {
-    if (isRecording()) stopRecording();
-    vi.useRealTimers();
-  });
-
-  it('record starts and reports how to stop', async () => {
-    const { terminal, run } = makeShell();
-    const exitCode = await run(['record']);
-    expect(exitCode).toBe(0);
-    expect(terminal.output).toContain('started');
-    expect(terminal.output).toContain('record');
-  });
-
-  it('record stop outputs JSON containing the commands that ran in between', async () => {
-    const { terminal, run } = makeShell();
-
-    await run(['record']);
-    await run(['echo', 'hello']);
-    await run(['echo', 'world']);
-    terminal.output = '';
-    await run(['record']); // stop
-
-    expect(terminal.output).toContain('"commands"');
-    expect(terminal.output).toContain('"echo"');
-    expect(terminal.output).toContain('"hello"');
-    expect(terminal.output).toContain('"world"');
-  });
-
-  it('record does not include record/replay commands themselves in the output', async () => {
-    const { terminal, run } = makeShell();
-
-    await run(['record']);
-    await run(['echo', 'hi']);
-    terminal.output = '';
-    await run(['record']); // stop
-
-    const jsonLine = terminal.output.split('\r\n').find(l => l.startsWith('{"commands"'));
-    expect(jsonLine).toBeTruthy();
-    const parsed = JSON.parse(jsonLine!);
-    const commandNames = parsed.commands.map((c: string[]) => c[0]);
-    expect(commandNames).not.toContain('record');
-    expect(commandNames).not.toContain('replay');
-  });
-
-  it('replay runs commands from an encoded recording', async () => {
-    vi.useFakeTimers();
-    const { terminal, run } = makeShell();
-
-    const encoded = encodeRecording({
-      commands: [['echo', 'replay-works']],
-      ts: [100],
-    });
-
-    const replayPromise = run(['replay', encoded]);
-    await vi.runAllTimersAsync();
-    await replayPromise;
-
-    expect(terminal.output).toContain('replay-works');
-  });
-
-  it('replay handles ts shorter than commands via modulus without crashing', async () => {
-    vi.useFakeTimers();
-    const { terminal, run } = makeShell();
-
-    const encoded = encodeRecording({
-      commands: [['echo', 'one'], ['echo', 'two'], ['echo', 'three']],
-      ts: [100], // only one timestamp for three commands
-    });
-
-    const replayPromise = run(['replay', encoded]);
-    await vi.runAllTimersAsync();
-    await replayPromise;
-
-    expect(terminal.output).toContain('one');
-    expect(terminal.output).toContain('two');
-    expect(terminal.output).toContain('three');
-  });
-
-  it('replay returns exit 1 for invalid base64', async () => {
-    const { terminal, run } = makeShell();
-    const exitCode = await run(['replay', '!!!not-valid-base64!!!']);
-    expect(exitCode).toBe(1);
-    expect(terminal.output).toContain('invalid');
-  });
-});
 
 describe('readvar', () => {
   it('reads file content into an env var', async () => {
@@ -221,6 +155,30 @@ describe('readvar', () => {
     await shell.executeCommand({ argvTemplates: ['echo', 'hello $NAME'], redirects: [] });
 
     expect(terminal.output).toContain('hello world');
+  });
+});
+
+describe('snapshot', () => {
+  it('prints an overlay link for the current filesystem', async () => {
+    const { terminal, shell, run } = makeShell();
+    shell.fs.writeFile('/home/guest/note.txt', 'hello');
+
+    const exitCode = await run(['snapshot']);
+
+    expect(exitCode).toBe(0);
+    const overlayParam = terminal.output.match(/\?overlay=([A-Za-z0-9\-_]+)/)?.[1];
+    expect(overlayParam).toBeTruthy();
+
+    const overlay = parseOverlayParam(overlayParam);
+    const files: Array<{ path: string; content: string }> = [];
+    forEachOverlayFile(overlay, (path, content) => {
+      files.push({ path, content });
+    });
+
+    expect(files).toContainEqual({
+      path: '/home/guest/note.txt',
+      content: 'hello',
+    });
   });
 });
 

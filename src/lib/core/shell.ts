@@ -1,6 +1,5 @@
 import type { Terminal } from '@xterm/xterm';
 import { VirtualFS } from '../fs/filesystem';
-import { createDefaultFS } from '../fs/defaultFs';
 import { CommandHistory } from './history';
 import { registry, type CommandContext } from './commandRegistry';
 import { executePlan, type CommandExecutor } from './planExecutor';
@@ -10,8 +9,18 @@ import { eraseToEndOfLine, cursorBack, cursorForward, bold, fg, reset } from './
 import type { NanoEditor } from '../editor/nanoEditor';
 import type { ResolvedNanoTermConfig } from '../config';
 import { applyFSOverlay } from '../fs/overlay';
+import { createInitialFSState, loadFSStateFromLocalStorage, saveFSStateToLocalStorage } from '../fs/persistence';
 import type { NashAssignment, NashSimpleCommand, RedirectSpec } from './nashPlan';
-import { recordCommand } from '../commands/recorder';
+
+export interface ShellEvents {
+  beforeCommand: {
+    line: string;
+  };
+  afterCommand: {
+    line: string;
+    exitCode: number;
+  };
+}
 
 export class Shell implements CommandExecutor {
   private terminal: Terminal;
@@ -25,14 +34,26 @@ export class Shell implements CommandExecutor {
   activeEditor: NanoEditor | null = null;
   private config: ResolvedNanoTermConfig;
   private planner = createDefaultNashPlanner();
+  private listeners: { [K in keyof ShellEvents]: Set<(payload: ShellEvents[K]) => void> } = {
+    beforeCommand: new Set(),
+    afterCommand: new Set(),
+  };
 
   constructor(terminal: Terminal, config: ResolvedNanoTermConfig) {
     this.terminal = terminal;
     this.config = config;
-    this.fs = new VirtualFS(createDefaultFS());
-    applyFSOverlay(this.fs, this.config.fs.overlay);
+    this.fs = this.createFS();
     this.history = new CommandHistory();
     this.env = new Map(Object.entries(this.config.profile.env));
+  }
+
+  on<K extends keyof ShellEvents>(event: K, listener: (payload: ShellEvents[K]) => void): () => void {
+    this.listeners[event].add(listener);
+    return () => this.off(event, listener);
+  }
+
+  off<K extends keyof ShellEvents>(event: K, listener: (payload: ShellEvents[K]) => void): void {
+    this.listeners[event].delete(listener);
   }
 
   start(): void {
@@ -335,10 +356,12 @@ export class Shell implements CommandExecutor {
     }
 
     this.history.push(input);
+    this.emit('beforeCommand', { line: input });
 
-    await executePlan(planned.plan, this);
+    const exitCode = await executePlan(planned.plan, this);
 
     this.env.set('PWD', this.fs.cwd);
+    this.emit('afterCommand', { line: input, exitCode });
     this.printPrompt();
   }
 
@@ -400,20 +423,11 @@ export class Shell implements CommandExecutor {
         }
       }
 
-      recordCommand(expandedArgv.values, command.redirects);
       return result.exitCode;
     } catch (err: any) {
       this.terminal.writeln(`${commandName}: ${err.message || 'unknown error'}`);
       return 1;
     }
-  }
-
-  async runArgv(argv: string[]): Promise<number> {
-    return this.executeCommand({ argvTemplates: argv, redirects: [] });
-  }
-
-  async runCommand(argv: string[], redirects: RedirectSpec[]): Promise<number> {
-    return this.executeCommand({ argvTemplates: argv, redirects });
   }
 
   applyAssignment(assignment: NashAssignment): number {
@@ -471,6 +485,31 @@ export class Shell implements CommandExecutor {
       values.push(expanded.value);
     }
     return { ok: true, values };
+  }
+
+  private emit<K extends keyof ShellEvents>(event: K, payload: ShellEvents[K]): void {
+    for (const listener of this.listeners[event]) {
+      listener(payload);
+    }
+  }
+
+  private createFS(): VirtualFS {
+    const state = this.config.fs.backend === 'localStorage'
+      ? loadFSStateFromLocalStorage(this.config.fs.localStorageKey) ?? createInitialFSState()
+      : createInitialFSState();
+
+    const fs = new VirtualFS(state.root);
+    fs.cd(state.cwd);
+    applyFSOverlay(fs, this.config.fs.overlay);
+
+    if (this.config.fs.backend === 'localStorage') {
+      this.on('afterCommand', () => {
+        saveFSStateToLocalStorage(this.config.fs.localStorageKey, fs.root, fs.cwd);
+      });
+      saveFSStateToLocalStorage(this.config.fs.localStorageKey, fs.root, fs.cwd);
+    }
+
+    return fs;
   }
 
   handleResize(cols: number, rows: number): void {
