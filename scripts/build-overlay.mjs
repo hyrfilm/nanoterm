@@ -1,12 +1,13 @@
 #!/usr/bin/env node
 
 import { promises as fs } from 'node:fs';
+import { fileURLToPath } from 'node:url';
 import path from 'node:path';
 import { TextDecoder } from 'node:util';
 import { glob } from 'tinyglobby';
 
 const DEFAULT_OUT = 'src/generated/fs-overlay.json';
-const DEFAULT_EXCLUDE = ['**/.*'];
+const DEFAULT_EXCLUDE = ['**/.*', '**/__pycache__/**', '**/*.pyc', '**/*.pyo', '**/node_modules/**'];
 
 const STRIKE = '\x1b[9m';
 const DIM = '\x1b[2m';
@@ -163,7 +164,9 @@ async function main() {
   await runOverlayBuild(args);
 }
 
-main().catch((error) => {
-  console.error(`overlay build failed: ${error.message}`);
-  process.exitCode = 1;
-});
+if (process.argv[1] === fileURLToPath(import.meta.url)) {
+  main().catch((error) => {
+    console.error(`overlay build failed: ${error.message}`);
+    process.exitCode = 1;
+  });
+}
