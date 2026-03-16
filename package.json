@@ -17,7 +17,8 @@
     "./scripts/build-overlay": "./scripts/build-overlay.mjs"
   },
   "files": [
-    "dist-lib"
+    "dist-lib",
+    "scripts"
   ],
   "scripts": {
     "dev": "vite",
