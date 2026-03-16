@@ -3,6 +3,7 @@ import {dim, reset, underline} from "../core/ansi";
 
 export interface NanoTermProfileConfig {
   startupCommands?: string[];
+  pendingInput?: string;
   infoMsg?: boolean | string;
   env?: Record<string, string>;
 }
@@ -55,6 +56,7 @@ export interface NanoTermConfig {
 export interface ResolvedNanoTermConfig {
   profile: {
     startupCommands: string[];
+    pendingInput: string;
     env: Record<string, string>;
   };
   fs: {
@@ -124,6 +126,7 @@ export function resolveNanoTermConfig(config: NanoTermConfig = {}): ResolvedNano
   return {
     profile: {
       startupCommands: config.profile?.startupCommands ?? [],
+      pendingInput: config.profile?.pendingInput ?? '',
       env: {
         ...defaultEnv,
         ...(config.profile?.env || {}),

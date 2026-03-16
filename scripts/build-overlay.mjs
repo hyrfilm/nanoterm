@@ -6,6 +6,15 @@ import { TextDecoder } from 'node:util';
 import { glob } from 'tinyglobby';
 
 const DEFAULT_OUT = 'src/generated/fs-overlay.json';
+const DEFAULT_EXCLUDE = ['**/.*'];
+
+const STRIKE = '\x1b[9m';
+const DIM = '\x1b[2m';
+const RESET = '\x1b[0m';
+
+function formatBytes(n) {
+  return n.toLocaleString('en-US') + ' bytes';
+}
 
 function printHelp() {
   console.log(`Usage:
@@ -14,7 +23,8 @@ function printHelp() {
 Options:
   --fromDir   Source directory to serialize into overlay JSON (required)
   --out       Output file path (default: ${DEFAULT_OUT})
-  --exclude   Glob pattern to exclude (can be repeated)
+  --exclude   Glob pattern to exclude (can be repeated, default: ${DEFAULT_EXCLUDE.join(', ')})
+  --no-minify Write pretty-printed JSON instead of minified (default: minified)
   --help      Show this help
 
 Example:
@@ -26,7 +36,8 @@ function parseArgs(argv) {
   const args = {
     fromDir: '',
     out: DEFAULT_OUT,
-    exclude: [],
+    exclude: [...DEFAULT_EXCLUDE],
+    minify: true,
   };
 
   for (let index = 0; index < argv.length; index += 1) {
@@ -36,21 +47,19 @@ function parseArgs(argv) {
       continue;
     }
     if (token === '--fromDir') {
-      args.fromDir = argv[index + 1] || '';
-      index += 1;
+      args.fromDir = argv[index += 1];
       continue;
     }
     if (token === '--out') {
-      args.out = argv[index + 1] || DEFAULT_OUT;
-      index += 1;
+      args.out = argv[index += 1];
       continue;
     }
     if (token === '--exclude') {
-      const value = argv[index + 1];
-      if (value) {
-        args.exclude.push(value);
-        index += 1;
-      }
+      args.exclude.push(argv[index += 1]);
+      continue;
+    }
+    if (token === '--no-minify') {
+      args.minify = false;
       continue;
     }
     throw new Error(`Unknown argument: ${token}`);
@@ -62,9 +71,7 @@ function parseArgs(argv) {
 function setPath(tree, parts, value) {
   let current = tree;
   for (const part of parts.slice(0, -1)) {
-    if (!current[part] || typeof current[part] !== 'object' || Array.isArray(current[part])) {
-      current[part] = {};
-    }
+    current[part] ??= {};
     current = current[part];
   }
   current[parts[parts.length - 1]] = value;
@@ -75,17 +82,9 @@ function normalizeParts(relativePath) {
 }
 
 function decodeUtf8(buffer) {
-  const decoder = new TextDecoder('utf-8', { fatal: true });
   try {
-    const text = decoder.decode(buffer);
-    if (text.includes('\u0000')) {
-      return null;
-    }
-    const suspiciousChars = text.match(/[\u0001-\u0008\u000B\u000C\u000E-\u001A]/g)?.length || 0;
-    if (suspiciousChars > text.length * 0.1) {
-      return null;
-    }
-    return text;
+    const text = new TextDecoder('utf-8', { fatal: true }).decode(buffer);
+    return text.includes('\u0000') ? null : text;
   } catch {
     return null;
   }
@@ -93,72 +92,63 @@ function decodeUtf8(buffer) {
 
 async function buildOverlay({ fromDir, exclude }) {
   const sourceDir = path.resolve(fromDir);
-  const stat = await fs.stat(sourceDir).catch(() => null);
-  if (!stat || !stat.isDirectory()) {
-    throw new Error(`--fromDir path is not a directory: ${fromDir}`);
-  }
+  const stat = await fs.stat(sourceDir);
+  if (!stat.isDirectory()) throw new Error(`not a directory: ${fromDir}`);
 
-  const files = await glob('**/*', {
-    cwd: sourceDir,
-    onlyFiles: true,
-    dot: true,
-    ignore: exclude,
-  });
+  const allFiles = await glob('**/*', { cwd: sourceDir, onlyFiles: true, dot: true });
+  const includedFiles = await glob('**/*', { cwd: sourceDir, onlyFiles: true, dot: true, ignore: exclude });
 
-  files.sort((left, right) => left.localeCompare(right));
+  allFiles.sort((a, b) => a.localeCompare(b));
+  const includedSet = new Set(includedFiles);
 
   const root = {};
   const types = {};
-  const stats = {
-    json: 0,
-    text: 0,
-    base64: 0,
-  };
+  const fileStats = { text: 0, base64: 0, totalBytes: 0, excluded: 0 };
 
-  for (const relativePath of files) {
+  for (const relativePath of allFiles) {
+    if (!includedSet.has(relativePath)) {
+      console.log(`  ${STRIKE}${relativePath}${RESET}`);
+      fileStats.excluded += 1;
+      continue;
+    }
+
     const absolutePath = path.join(sourceDir, relativePath);
     const parts = normalizeParts(relativePath);
     const content = await fs.readFile(absolutePath);
-
-    if (path.extname(relativePath) === '.json') {
-      const maybeText = decodeUtf8(content);
-      if (maybeText !== null) {
-        try {
-          setPath(root, parts, JSON.parse(maybeText));
-          setPath(types, parts, 'json');
-          stats.json += 1;
-          continue;
-        } catch {
-          // fall through and classify as text/base64
-        }
-      }
-    }
+    fileStats.totalBytes += content.length;
 
     const maybeText = decodeUtf8(content);
     if (maybeText !== null) {
       setPath(root, parts, maybeText);
-      stats.text += 1;
-      continue;
+      fileStats.text += 1;
+    } else {
+      setPath(root, parts, content.toString('base64'));
+      setPath(types, parts, 'base64');
+      fileStats.base64 += 1;
     }
 
-    setPath(root, parts, content.toString('base64'));
-    setPath(types, parts, 'base64');
-    stats.base64 += 1;
+    console.log(`  ${relativePath}  ${DIM}${formatBytes(content.length)}${RESET}`);
   }
 
-  const overlay = {
-    '/': root,
-  };
-
+  const overlay = { '/': root };
   if (Object.keys(types).length > 0) {
-    overlay._ = {
-      types: {
-        '/': types,
-      },
-    };
+    overlay._ = { types: { '/': types } };
   }
 
-  return { overlay, stats, totalFiles: files.length };
+  return { overlay, fileStats, totalIncluded: includedSet.size };
+}
+
+export async function runOverlayBuild({ fromDir, out = DEFAULT_OUT, exclude = DEFAULT_EXCLUDE, minify = true } = {}) {
+  const { overlay, fileStats, totalIncluded } = await buildOverlay({ fromDir, exclude });
+
+  const outPath = path.resolve(out);
+  const json = minify ? JSON.stringify(overlay) : JSON.stringify(overlay, null, 2);
+  await fs.mkdir(path.dirname(outPath), { recursive: true });
+  await fs.writeFile(outPath, `${json}\n`, 'utf8');
+
+  console.log('');
+  console.log(`${totalIncluded} files  ${formatBytes(fileStats.totalBytes)}  (${fileStats.excluded} excluded)`);
+  console.log(`Written: ${outPath}`);
 }
 
 async function main() {
@@ -168,22 +158,9 @@ async function main() {
     return;
   }
 
-  if (!args.fromDir) {
-    throw new Error('Missing required argument: --fromDir');
-  }
+  if (!args.fromDir) throw new Error('Missing required argument: --fromDir');
 
-  const { overlay, stats, totalFiles } = await buildOverlay({
-    fromDir: args.fromDir,
-    exclude: args.exclude,
-  });
-
-  const outPath = path.resolve(args.out || DEFAULT_OUT);
-  await fs.mkdir(path.dirname(outPath), { recursive: true });
-  await fs.writeFile(outPath, `${JSON.stringify(overlay, null, 2)}\n`, 'utf8');
-
-  console.log(`Overlay generated: ${outPath}`);
-  console.log(`Files processed: ${totalFiles}`);
-  console.log(`JSON: ${stats.json}, text: ${stats.text}, base64: ${stats.base64}`);
+  await runOverlayBuild(args);
 }
 
 main().catch((error) => {

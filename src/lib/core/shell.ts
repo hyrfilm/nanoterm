@@ -64,6 +64,12 @@ export class Shell implements CommandExecutor {
       })
       .finally(() => {
         this.printPrompt();
+        const pending = this.config.profile.pendingInput;
+        if (pending) {
+          this.lineBuffer = pending;
+          this.cursorPos = pending.length;
+          this.terminal.write(pending);
+        }
       });
   }
 

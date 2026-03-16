@@ -192,9 +192,7 @@ function decodeBase64Url(value: string): string {
 }
 
 function looksBinaryString(value: string): boolean {
-  if (value.includes('\u0000')) return true;
-  const suspiciousChars = value.match(/[\u0001-\u0008\u000B\u000C\u000E-\u001A]/g)?.length || 0;
-  return suspiciousChars > value.length * 0.1;
+  return value.includes('\u0000');
 }
 
 function normalizeOverlay(value: unknown): FSOverlay {
