@@ -11,54 +11,18 @@ function block(px: number, py: number, w: number, h: number, color: string): str
     return buf;
 }
 
-// createSprite: collision callbacks are stored in a mutable 'cbs' object so that
-// external assignment (sprite.onXxxColl = ...) is reflected inside clip().
-const createSprite = (
-    terminal: { cols: number; rows: number; write: (s: string) => void },
-    px: number, py: number, w: number, h: number, color: string,
-) => {
-    let posX = px, posY = py, prevX = px, prevY = py;
-    const cbs = { left: () => { }, right: () => { }, top: () => { }, bottom: () => { } };
+function clamp(value: number, min: number, max: number): number {
+    return Math.max(min, Math.min(max, value));
+}
 
-    const clip = (x: number, y: number): [number, number] => {
-        if (x <= 0) { x = 0; cbs.left(); }
-        else if (x >= terminal.cols - w) { x = terminal.cols - w; cbs.right(); }
-        if (y <= 0) { y = 0; cbs.top(); }
-        else if (y >= terminal.rows - h) { y = terminal.rows - h; cbs.bottom(); }
-        return [x, y];
-    };
-
-    const setPos = (x: number, y: number) => {
-        prevX = posX; prevY = posY;
-        [posX, posY] = clip(x, y);
-    };
-
-    return {
-        get x() { return posX; },
-        get y() { return posY; },
-        setPos,
-        move: (dx: number, dy: number) => setPos(posX + dx, posY + dy),
-        update: () => terminal.write(block(prevX, prevY, w, h, BLACK) + block(posX, posY, w, h, color)),
-        set onLeftColl(f: () => void) { cbs.left = f; },
-        set onRightColl(f: () => void) { cbs.right = f; },
-        set onTopColl(f: () => void) { cbs.top = f; },
-        set onBottomColl(f: () => void) { cbs.bottom = f; },
-    };
-};
-
-class Ball {
-    dx = 1 + Math.random();
-    dy = -1 + Math.random();
-
-    constructor(private sprite: ReturnType<typeof createSprite>) {
-        sprite.onLeftColl = () => { this.dx = Math.abs(this.dx); };
-        sprite.onRightColl = () => { this.dx = -Math.abs(this.dx); };
-        sprite.onTopColl = () => { this.dy = Math.abs(this.dy); };
-        sprite.onBottomColl = () => { this.dy = -Math.abs(this.dy); };
+function reflectIntoBounds(value: number, max: number): number {
+    if (max <= 0) return 0;
+    let reflected = value;
+    while (reflected < 0 || reflected > max) {
+        if (reflected < 0) reflected = -reflected;
+        else reflected = 2 * max - reflected;
     }
-
-    step() { this.sprite.move(this.dx, this.dy); }
-    update() { this.sprite.update(); }
+    return reflected;
 }
 
 registry.register({
@@ -75,11 +39,15 @@ registry.register({
 
         const BALL_W = 2, BALL_H = 1;
         const PAD_W = 2, PAD_H = 5;
-        const MAX_SPEED = 3.0;
+        const MAX_SPEED = 5.0;
         const SPEED_INC = 0.12;
         const PAD_SPEED = 2;     // player cells/tick
         const AI_REACT_TICKS = 8;     // ticks of reaction delay after player hits
-        const AI_MAX_ERROR = 7;     // max cells of prediction error (±)
+        const AI_MAX_ERROR = 14;     // max cells of prediction error (±)
+        const MIN_PLAYABLE_COLS = PAD_W * 2 + BALL_W + 2;
+        const MIN_PLAYABLE_ROWS = Math.max(PAD_H, BALL_H) + 1;
+        const SCORE_PAUSE_MS = 900;
+        const IMPACT_SERIES = [100, 200, 300, 400];
 
         let cols = term.cols;
         let rows = term.rows;
@@ -91,13 +59,61 @@ registry.register({
         let ballX = 0, ballY = 0;
         let p1y = 0;    // player (left) paddle y
         let p2y = 0;    // AI (right) paddle y
-        // key-repeat initial delay.
         let p1dir = 0;
-        let p1keyTime = 0;
+        let p1UpPressed = false;
+        let p1DownPressed = false;
         // AI state: reacts after a delay and aims at a noisy prediction that
         // decays toward the true landing spot as the ball gets closer.
         let aiError = 0;   // current prediction offset (cells); fades with distance
         let aiReactDelay = 0;   // ticks before AI starts tracking
+        let pauseUntil = 0;
+        let audioCtx: AudioContext | null = null;
+        let audioBlocked = false;
+
+        const getAudioContext = (): AudioContext | null => {
+            if (audioBlocked || typeof window === 'undefined') return null;
+            if (audioCtx) return audioCtx;
+            const AudioContextCtor = window.AudioContext
+                || (window as Window & typeof globalThis & { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
+            if (!AudioContextCtor) {
+                audioBlocked = true;
+                return null;
+            }
+            audioCtx = new AudioContextCtor();
+            return audioCtx;
+        };
+
+        const playImpact = (impact: number, type: OscillatorType) => {
+            const ctx = getAudioContext();
+            if (!ctx || ctx.state !== 'running') return;
+
+            const normalized = clamp((impact - 0.6) / 2.8, 0, 1);
+            const noteIndex = Math.min(IMPACT_SERIES.length - 1, Math.round(normalized * (IMPACT_SERIES.length - 1)));
+            const duration = 0.03 + (1 - normalized) * 0.08;
+            const now = ctx.currentTime;
+            const oscillator = ctx.createOscillator();
+            const gain = ctx.createGain();
+
+            oscillator.type = type;
+            oscillator.frequency.setValueAtTime(IMPACT_SERIES[noteIndex], now);
+            gain.gain.setValueAtTime(0.0001, now);
+            gain.gain.exponentialRampToValueAtTime(0.05 + normalized * 0.03, now + 0.005);
+            gain.gain.exponentialRampToValueAtTime(0.0001, now + duration);
+
+            oscillator.connect(gain);
+            gain.connect(ctx.destination);
+            oscillator.start(now);
+            oscillator.stop(now + duration + 0.01);
+        };
+
+        const startPointPause = (ms: number) => {
+            pauseUntil = Date.now() + ms;
+        };
+
+        const syncP1Direction = () => {
+            if (p1UpPressed === p1DownPressed) p1dir = 0;
+            else p1dir = p1UpPressed ? -1 : 1;
+        };
 
         const P2_X = () => cols - PAD_W;
         // Ball bounces at the paddle face, not the wall, so ball and paddle
@@ -106,7 +122,7 @@ registry.register({
         const P2_FACE = () => cols - PAD_W - BALL_W; // right face: ball left-edge stops here
 
         const resetBall = () => {
-            speed = 0.5;
+            speed = 1.5;
             // Vary the serve angle
             bdy = (0.3 + Math.random() * 0.9) * (Math.random() < 0.5 ? 1 : -1);
             bdx = 1;   // always toward AI — gives player time to set up
@@ -120,8 +136,23 @@ registry.register({
 
         const drawScore = () => {
             const s = `${scoreLeft}  :  ${scoreRight}`;
-            const col = Math.floor((cols - s.length) / 2) + 1;
+            const col = Math.max(1, Math.floor((cols - s.length) / 2) + 1);
             return `\x1b[1;${col}H\x1b[1;37m${s}\x1b[0m`;
+        };
+
+        const isPlayable = () => cols >= MIN_PLAYABLE_COLS && rows >= MIN_PLAYABLE_ROWS;
+
+        const clampPositions = () => {
+            const maxBallX = Math.max(0, cols - BALL_W);
+            const maxBallY = Math.max(0, rows - BALL_H);
+            const maxPaddleY = Math.max(0, rows - PAD_H);
+
+            ballX = clamp(ballX, 0, maxBallX);
+            ballY = clamp(ballY, 0, maxBallY);
+            accumBx = clamp(accumBx, 0, maxBallX);
+            accumBy = clamp(accumBy, 0, maxBallY);
+            p1y = clamp(p1y, 0, maxPaddleY);
+            p2y = clamp(p2y, 0, maxPaddleY);
         };
 
         const drawDivider = () => {
@@ -150,6 +181,13 @@ registry.register({
         };
 
         const redrawFull = () => {
+            if (!isPlayable()) {
+                const msg = 'Terminal too small for pong';
+                const row = Math.max(1, Math.floor(rows / 2) + 1);
+                const col = Math.max(1, Math.floor((cols - msg.length) / 2) + 1);
+                term.write(`\x1b[40m\x1b[2J\x1b[${row};${col}H\x1b[1;37m${msg}\x1b[0m`);
+                return;
+            }
             term.write(
                 '\x1b[40m\x1b[2J' +
                 drawDivider() +
@@ -164,13 +202,16 @@ registry.register({
             p1y = Math.floor((rows - PAD_H) / 2);
             p2y = Math.floor((rows - PAD_H) / 2);
             resetBall();
+            clampPositions();
             redrawFull();
         };
 
         const step = () => {
-            // Timestamp window: paddle keeps moving while key was pressed within
-            // the last 150 ms, bridging the gap before key-repeat kicks in.
-            const inputDy = (Date.now() - p1keyTime < 150) ? p1dir : 0;
+            if (!isPlayable()) return;
+            if (pauseUntil > Date.now()) return;
+            pauseUntil = 0;
+
+            const newP1y = clamp(p1y + p1dir * PAD_SPEED, 0, rows - PAD_H);
 
             // ── move ball ────────────────────────────────────────────────────
             const prevAccumBx = accumBx;
@@ -182,8 +223,18 @@ registry.register({
             let newBy = Math.round(accumBy);
 
             // Bounce top / bottom walls (may overwrite accumBy)
-            if (newBy <= 0) { newBy = 0; accumBy = 0; bdy = 1; }
-            if (newBy >= rows - BALL_H) { newBy = rows - BALL_H; accumBy = rows - BALL_H; bdy = -1; }
+            if (newBy <= 0) {
+                newBy = 0;
+                accumBy = 0;
+                bdy = Math.abs(bdy);
+                playImpact(Math.abs(bdy) * speed, 'sine');
+            }
+            if (newBy >= rows - BALL_H) {
+                newBy = rows - BALL_H;
+                accumBy = rows - BALL_H;
+                bdy = -Math.abs(bdy);
+                playImpact(Math.abs(bdy) * speed, 'sine');
+            }
 
             // Interpolate the ball's Y at the exact X where it crosses a paddle
             // face. Uses rawAccumBy (pre-wall-clamp) so that a ball crossing both
@@ -192,7 +243,8 @@ registry.register({
                 const dx = accumBx - prevAccumBx;
                 if (dx === 0) return newBy;
                 const t = (targetX - prevAccumBx) / dx;
-                return Math.round(prevAccumBy + t * (rawAccumBy - prevAccumBy));
+                const rawY = prevAccumBy + t * (rawAccumBy - prevAccumBy);
+                return Math.round(reflectIntoBounds(rawY, Math.max(0, rows - BALL_H)));
             };
 
             // ── left paddle face ──────────────────────────────────────────────
@@ -201,17 +253,19 @@ registry.register({
             if (accumBx <= P1_FACE) {
                 const hitY = yAtX(P1_FACE);
                 newBx = P1_FACE; accumBx = P1_FACE;
-                if (hitY + BALL_H > p1y && hitY < p1y + PAD_H) {
+                if (hitY + BALL_H > newP1y && hitY < newP1y + PAD_H) {
                     bdx = 1;
                     speed = Math.min(speed + SPEED_INC, MAX_SPEED);
+                    playImpact(speed + Math.abs(bdy), 'sawtooth');
                     // AI takes a moment to react, and starts with a noisy
                     // prediction — the error fades as the ball gets closer.
                     aiError = Math.round((Math.random() * 2 - 1) * AI_MAX_ERROR);
                     aiReactDelay = AI_REACT_TICKS;
                 } else {
                     scoreRight++;
-                    term.write(drawScore());
                     resetBall();
+                    clampPositions();
+                    startPointPause(SCORE_PAUSE_MS);
                     redrawFull();
                     return;
                 }
@@ -224,17 +278,15 @@ registry.register({
                 if (hitY + BALL_H > p2y && hitY < p2y + PAD_H) {
                     bdx = -1;
                     speed = Math.min(speed + SPEED_INC, MAX_SPEED);
+                    playImpact(speed + Math.abs(bdy), 'triangle');
                 } else {
                     scoreLeft++;
-                    term.write(drawScore());
                     resetBall();
+                    clampPositions();
                     redrawFull();
                     return;
                 }
             }
-
-            // ── move player paddle ────────────────────────────────────────────
-            const newP1y = Math.max(0, Math.min(rows - PAD_H, p1y + inputDy * PAD_SPEED));
 
             // ── move AI paddle ────────────────────────────────────────────────
             // AI waits AI_REACT_TICKS because distracted
@@ -276,24 +328,63 @@ registry.register({
         };
 
         init();
+        term.focus();
+        term.write('\x1b[?25l');
 
         return new Promise((resolve) => {
             const interval = setInterval(step, 40);
             const resizeDisposable = term.onResize(({ cols: c, rows: r }: { cols: number; rows: number }) => {
-                cols = c; rows = r;
+                cols = Math.max(1, c);
+                rows = Math.max(1, r);
+                clampPositions();
                 redrawFull();
             });
-            const dataDisposable = term.onData((data: string) => {
-                if (data === 'w' || data === 'W' || data === '\x1b[A') { p1dir = -1; p1keyTime = Date.now(); }
-                else if (data === 's' || data === 'S' || data === '\x1b[B') { p1dir = 1; p1keyTime = Date.now(); }
-                else if (data === 'q' || data === 'Q' || data === '\x03') {
-                    clearInterval(interval);
-                    resizeDisposable.dispose();
-                    dataDisposable.dispose();
-                    if (ctx.shell) ctx.shell.activeEditor = null;
-                    term.write('\x1b[?1049l\x1b[?25h');
-                    resolve({ exitCode: 0 });
+            let finished = false;
+            const stopGame = () => {
+                if (finished) return;
+                finished = true;
+                clearInterval(interval);
+                resizeDisposable.dispose();
+                dataDisposable.dispose();
+                p1UpPressed = false;
+                p1DownPressed = false;
+                syncP1Direction();
+                term.attachCustomKeyEventHandler(() => true);
+                void audioCtx?.close().catch(() => { });
+                audioCtx = null;
+                if (ctx.shell) ctx.shell.activeEditor = null;
+                term.write('\x1b[?1049l\x1b[?25h');
+                resolve({ exitCode: 0 });
+            };
+            term.attachCustomKeyEventHandler((event: KeyboardEvent) => {
+                if (finished) return true;
+
+                const isUp = event.key === 'w' || event.key === 'W' || event.key === 'ArrowUp';
+                const isDown = event.key === 's' || event.key === 'S' || event.key === 'ArrowDown';
+                const isQuit = event.key === 'q' || event.key === 'Q' || (event.key === 'c' && event.ctrlKey);
+                const shouldCapture = isUp || isDown || isQuit;
+
+                if (!shouldCapture) return true;
+
+                if (event.type === 'keydown') {
+                    void getAudioContext()?.resume();
+                    if (isUp) p1UpPressed = true;
+                    else if (isDown) p1DownPressed = true;
+                    else if (isQuit) {
+                        stopGame();
+                    }
+                } else if (event.type === 'keyup') {
+                    if (isUp) p1UpPressed = false;
+                    else if (isDown) p1DownPressed = false;
                 }
+
+                syncP1Direction();
+                event.preventDefault();
+                event.stopPropagation();
+                return false;
+            });
+            const dataDisposable = term.onData((data: string) => {
+                if (data === 'q' || data === 'Q' || data === '\x03') stopGame();
             });
         });
     },
