@@ -1,6 +1,6 @@
 {
   "name": "nanoterm",
-  "version": "0.3.2",
+  "version": "0.4.0",
   "description": "pluggable unix emulator for the browser",
   "repository": {
     "type": "git",
