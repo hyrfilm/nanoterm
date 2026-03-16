@@ -6,6 +6,8 @@ import './commands/index';
 import { Shell } from './core/shell';
 import { resolveNanoTermConfig } from './config';
 import type { NanoTermConfig } from './config';
+import { isDir } from './fs/types';
+import type { VirtualFS } from './fs/filesystem';
 
 export { registry } from './core/commandRegistry';
 export type { CommandDefinition, CommandContext, CommandResult, CommandHandler } from './core/commandRegistry';
@@ -15,9 +17,48 @@ export type { ShellEvents } from './core/shell';
 export type { FSOverlay } from './fs/overlay';
 export { applyFSOverlay, createSnapshotOverlay, encodeOverlayForUrl, forEachOverlayFile, parseOverlayJson, parseOverlayParam, emptyOverlay } from './fs/overlay';
 
+export interface FSEntry {
+  name: string;
+  path: string;
+  type: 'file' | 'dir';
+}
+
+export interface NanoTermFS {
+  readFile(path: string): string | null;
+  writeFile(path: string, content: string): void;
+  readDir(path: string): FSEntry[] | null;
+  stat(path: string): FSEntry | null;
+}
+
+function makeNanoTermFS(vfs: VirtualFS): NanoTermFS {
+  function toEntry(path: string): FSEntry | null {
+    const node = vfs.stat(path);
+    if (!node) return null;
+    const parts = path.split('/').filter(Boolean);
+    return { name: parts[parts.length - 1] ?? '/', path, type: isDir(node) ? 'dir' : 'file' };
+  }
+
+  return {
+    readFile: (path) => vfs.readFile(path),
+    writeFile: (path, content) => { vfs.writeFile(path, content); },
+    readDir: (path) => {
+      const nodes = vfs.readDir(path);
+      if (!nodes) return null;
+      const resolved = vfs.resolvePath(path);
+      return nodes.map((node) => ({
+        name: node.name,
+        path: resolved === '/' ? `/${node.name}` : `${resolved}/${node.name}`,
+        type: isDir(node) ? 'dir' : 'file',
+      }));
+    },
+    stat: (path) => toEntry(vfs.resolvePath(path)),
+  };
+}
+
 export interface NanoTermInstance {
   terminal: Terminal;
   shell: Shell;
+  fs: NanoTermFS;
   dispose(): void;
   fit(): void;
 }
@@ -75,6 +116,7 @@ export function createNanoTerm(
   return {
     terminal,
     shell,
+    fs: makeNanoTermFS(shell.fs),
     dispose() {
       window.removeEventListener('resize', onResize);
       terminal.dispose();

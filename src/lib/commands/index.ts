@@ -33,3 +33,5 @@ import './curl';
 import './readvar';
 import './snapshot';
 import './sleep';
+
+import './yes';
